@@ -1,7 +1,8 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 //  Date:  18 July 2016 
-//  Description:    rosenbluth sampling of growing ligands on a spheroid
+//	    29 Dec 2016
+//  Description:    rosenbluth sampling of growing ligands on a planar surface (PBCs in x-y)
 //
 //  Usage Syntax:
 //
@@ -91,7 +92,6 @@ int main(int argv, char *argc[]) {
     cout << "reading parameters from: " << paramFile << endl;
     paramReader (paramFile);
 
-    // Seed!!!! arfgljkad;lkfjadsfjsda;'
     mrRand = gsl_rng_alloc (gsl_rng_taus);
     cout << "mySeed is: " << mySeed << endl;
     gsl_rng_set(mrRand, mySeed);
@@ -103,8 +103,6 @@ int main(int argv, char *argc[]) {
     myOut.close();
 
     genarray<double> atomPositions;
-    readConfig (spheroidFile, atomPositions);
-
 
 
 
@@ -811,6 +809,44 @@ void writeLammps (string outName, genarray< Poly > &brush) {
     myOut.close();
 }
 
+void readThomson (string inName, genarray< Poly > &trialThomson) {
+// Read in a XYZ file with points on a sphere (thomson problem).
+// At the end, trialThomson has 10 different (rotated) configs of points on sphere.
+    int ctr = 0;
+    int atomctr = 0;
+    double x,y,z;
+    double theta;
+    int type;
+    cout << "reading file " << inName << " for Thomson points." << endl;
+    ifstream in(readName.c_str());
+    string junk, myLine;
+    Poly mySphere;
+    int nPts;
+
+    while (getline(in, myLine)) {
+	if (myLine != "") {
+	    stringstream ss(myLine);
+	    if (ctr == 0) {
+		ss >> nPts;
+		mySphere.poly.resize(nPts);
+		mySphere.poly.nMono = nPts;
+	    }
+	    if (ctr > 1) {
+		ss >> junk >> x >> y >> z;
+		mySphere.chain(ctr-2).x = x;
+		mySphere.chain(ctr-2).y = y;
+		mySphere.chain(ctr-2).z = z;
+	    }
+	    ctr++;
+	}
+    }
+    
+// Fill in trialThomson with rotations of the sphere
+    
+
+
+
+}
 
 
 
