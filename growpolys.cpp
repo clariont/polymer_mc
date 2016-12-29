@@ -34,7 +34,8 @@ int writeEvery = 1000;
 double xlo, xhi, ylo, yhi, zlo, zhi;
 int ngraft;
 int totalMono;
-string spheroidFile;
+//string spheroidFile;
+string thomsonFile;
 double r_cut = 1;
 double sigma = 0.5;
 double epsilon = 10;
@@ -112,7 +113,6 @@ int main(int argv, char *argc[]) {
     myOut.close();
 
     genarray< Poly > trialThomson;
-    string thomsonFile(argc[2]);
     readThomson(thomsonFile, trialThomson);
 
 
@@ -185,6 +185,7 @@ void paramReader (string fileName)
     ifstream in;
     in.open(fileName.c_str(), ios::in);
     string junk1;
+    in >> junk1 >> thomsonFile;
     in >> junk1 >> totalMono;
 //    in >> junk1 >> writeEvery;
     in >> junk1 >> mySeed;
