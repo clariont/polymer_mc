@@ -16,6 +16,8 @@
 #include <string>
 #include <sstream>
 #include "genarray.h"
+//#include <gsl_rng.h>
+//#include <gsl_randist.h>
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 
@@ -42,6 +44,8 @@ double k_angle = 2;
 //double elp_c = 10.4725;
 double elp_a = 7.5;
 double elp_c = 3.0;
+double lattice_size = 1.0;
+double box_len = 10;
 
 // Rosenbluth params:
 int nTrial = 10;
@@ -84,9 +88,14 @@ void clearBrush (genarray< Poly > &brush);
 
 void calcPolarAngle (genarray< Poly > &brush, genarray< double > &polarAngles); 
 
+void readThomson (string inName, genarray< Poly > &trialThomson);
+
+void makeSquareLattice (genarray <double> &atomPositions);
+
 // Main
 
 int main(int argv, char *argc[]) {
+    cout << "Command line arguments: paramFile thomsonFile" << endl;
     // Read parameter file
     string paramFile(argc[1]);
     cout << "reading parameters from: " << paramFile << endl;
@@ -102,9 +111,13 @@ int main(int argv, char *argc[]) {
     myOut.open("brush.lammpstrj", ios::out);
     myOut.close();
 
-    genarray<double> atomPositions;
+    genarray< Poly > trialThomson;
+    string thomsonFile(argc[2]);
+    readThomson(thomsonFile, trialThomson);
 
 
+    genarray< double > atomPositions;
+    makeSquareLattice (atomPositions);
 
     genarray< double > polarAngles;
     genarray< Poly > brush;
@@ -176,12 +189,16 @@ void paramReader (string fileName)
 //    in >> junk1 >> writeEvery;
     in >> junk1 >> mySeed;
     in >> junk1 >> TEMP;
-    in >> junk1 >> ngraft;
-    in >> junk1 >> spheroidFile;
-    in >> junk1 >> nTrial;
-    in >> junk1 >> elp_a;
-    in >> junk1 >> elp_c;
+    in >> junk1 >> box_len;
+    in >> junk1 >> lattice_size;
     in.close();
+    xhi = 0.5*box_len;
+    yhi = 0.5*box_len;
+    zhi = 100000;
+    xlo = -xhi;
+    ylo = -yhi;
+    zlo = 0;
+
 
 }
 
@@ -242,11 +259,9 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
     Poly tempPoly;
     tempPoly.nMono = 0;
     tempPoly.chain.resize(maxMono);
-    cout << "0 \n";
     for (int i = 0; i < maxMono; i++) {
 	tempPoly.chain(i) = dummy;
     }
-    cout << "1 \n";
 
     // Init all polymers, set first monomer to the spheroid monomers.
     cout << "ngraft is: " << ngraft << endl;
@@ -818,18 +833,20 @@ void readThomson (string inName, genarray< Poly > &trialThomson) {
     double theta;
     int type;
     cout << "reading file " << inName << " for Thomson points." << endl;
-    ifstream in(readName.c_str());
+    ifstream in(inName.c_str());
     string junk, myLine;
     Poly mySphere;
     int nPts;
+
+    trialThomson.resize(10);
 
     while (getline(in, myLine)) {
 	if (myLine != "") {
 	    stringstream ss(myLine);
 	    if (ctr == 0) {
 		ss >> nPts;
-		mySphere.poly.resize(nPts);
-		mySphere.poly.nMono = nPts;
+		mySphere.chain.resize(nPts);
+		mySphere.nMono = nPts;
 	    }
 	    if (ctr > 1) {
 		ss >> junk >> x >> y >> z;
@@ -837,16 +854,32 @@ void readThomson (string inName, genarray< Poly > &trialThomson) {
 		mySphere.chain(ctr-2).y = y;
 		mySphere.chain(ctr-2).z = z;
 	    }
-	    ctr++;
 	}
+	ctr++;
     }
+    trialThomson(0) = mySphere;
+
     
-// Fill in trialThomson with rotations of the sphere
-    
-
-
-
+// Fill in trialThomson with rotations of the sphere (write quaternion crap laterz)
+    for (int i = 1; i < 10; i++) {
+	trialThomson(i) = mySphere;
+    }
 }
 
+void makeSquareLattice (genarray <double> &atomPositions) {
+
+    int ngraft_sqrt = double(box_len)/lattice_size;
+    ngraft = ngraft_sqrt*ngraft_sqrt;
+    atomPositions.resize(ngraft*3);
+    int ic;
+    for (int i = 0; i < ngraft_sqrt; i++) {
+	for (int j = 0; j < ngraft_sqrt; j++) {
+	    ic = (i*ngraft_sqrt + j)*3;
+	    atomPositions(ic) = xlo + lattice_size*i;
+	    atomPositions(ic+1) = ylo + lattice_size*j;
+	    atomPositions(ic+2) = zlo;
+	}
+    }
+}
 
 
