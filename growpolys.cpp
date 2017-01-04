@@ -23,6 +23,8 @@
 
 using namespace std;
 
+const double smalleps = 1e-6;
+
 // Global Variables
 const double PI = 3.14159265359;
 gsl_rng * mrRand;
@@ -32,12 +34,13 @@ double mass = 1.0;
 int totalSteps = 10000000;
 int writeEvery = 1000;
 double xlo, xhi, ylo, yhi, zlo, zhi;
+double xhalf, yhalf, xbox, ybox;
 int ngraft;
 int totalMono;
 //string spheroidFile;
 string thomsonFile;
 double r_cut = 1;
-double sigma = 0.5;
+double sigma = 1.0;
 double epsilon = 10;
 double theta_0 = PI;
 double k_angle = 2;
@@ -45,6 +48,7 @@ double k_angle = 2;
 //double elp_c = 10.4725;
 double elp_a = 7.5;
 double elp_c = 3.0;
+double iterations = 1;
 double lattice_size = 1.0;
 double box_len = 10;
 
@@ -73,9 +77,8 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
 
 double calcAddOneEn(Mono trialMono, int whichPoly, genarray< Poly > &brush); 
 
-void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly); 
-
-//void genAllTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos); 
+void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+	genarray< Poly > &trialThomson); 
 
 void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int previousPoly); 
 
@@ -92,6 +95,8 @@ void calcPolarAngle (genarray< Poly > &brush, genarray< double > &polarAngles);
 void readThomson (string inName, genarray< Poly > &trialThomson);
 
 void makeSquareLattice (genarray <double> &atomPositions);
+
+double monoDistSq (Mono m1, Mono m2);
 
 // Main
 
@@ -126,6 +131,11 @@ int main(int argv, char *argc[]) {
     initPolys (atomPositions, brush, trialMonos, trialRose);
     cout << "finished initPolys " << "\n";
     
+    genarray<double> hist(1000);
+    genarray<double> histctr(1000);
+    for (int i = 0; i < hist.length(); i++) {
+	hist(i) = 0;
+    }
 
 
     double rose_w = 1;
@@ -133,14 +143,14 @@ int main(int argv, char *argc[]) {
     outer.open("r_fac.dat", ios::out);
     outer1.open("anglevlen.dat", ios::out);
     int previous;
-    for (int j = 0; j < 1000; j++)  {
+    for (int j = 0; j < iterations; j++)  {
 	previous = -1;
 	for (int i = 0; i < totalMono; i++) {
 
 	    // generate all trial points
 	    for (int j = 0; j < brush.length(); j++) {
 //    	    cout << "\tgenerating for poly " << j << endl;
-		genTrialPts (j, brush, trialMonos, previous);
+		genTrialPts (j, brush, trialMonos, previous, trialThomson);
 	    }
 
 	    // calc rosenbluth
@@ -166,15 +176,21 @@ int main(int argv, char *argc[]) {
 	rose_w = 1;
 
 	// Analyze:
-	calcPolarAngle(brush, polarAngles);
-	for (int i = 0; i < brush.length(); i++) {
-	    outer1 << brush(i).nMono-1 << "\t" << polarAngles(i) << "\n";
+//	calcPolarAngle(brush, polarAngles);
+	for (int k = 0; k < brush.length(); k++) {
+//	    outer1 << brush(i).nMono-1 << "\t" << polarAngles(i) << "\n";
+	    hist(brush(k).nMono) = hist(brush(k).nMono) + 1;
 	}
+	
 
 	// Reset brush:
 	clearBrush(brush);
     }
-
+    ofstream outman;
+    outman.open("planar_hist.dat", ios::out);
+    for (int i = 0; i < brush.length(); i++) {
+	outman << i << "\t" << hist(i)/double(iterations) << endl;
+    }
 
     return 0;
 }
@@ -186,6 +202,8 @@ void paramReader (string fileName)
     in.open(fileName.c_str(), ios::in);
     string junk1;
     in >> junk1 >> thomsonFile;
+    in >> junk1 >> nTrial;
+    in >> junk1 >> iterations;
     in >> junk1 >> totalMono;
 //    in >> junk1 >> writeEvery;
     in >> junk1 >> mySeed;
@@ -197,6 +215,10 @@ void paramReader (string fileName)
     yhi = 0.5*box_len;
     zhi = 100000;
     xlo = -xhi;
+    xhalf = xhi;
+    yhalf = yhi;
+    xbox = box_len;
+    ybox = box_len;
     ylo = -yhi;
     zlo = 0;
 
@@ -386,11 +408,13 @@ double calcEnergy(genarray< Poly > &brush) {
 
 double calcAddOneEn(Mono trialMono, int whichPoly, genarray< Poly > &brush) {
 // Calculate pair energies and angle of adding trialMono to polymer whichPoly. 
+// New - use step potential - e = epsilon at overlap.
 //    cout << "\t in calcAddOneEn! " << endl;
-    double asqinv = 1/(elp_a*elp_a);
-    double csqinv = 1/(elp_c*elp_c);
+//    double asqinv = 1/(elp_a*elp_a);
+//    double csqinv = 1/(elp_c*elp_c);
 
     double r_cutsq = r_cut*r_cut;
+    double sigma_sq = sigma*sigma;
     double e = 0;
     int startMono;
     int ic, jc, nMono1, nMono2;
@@ -400,9 +424,13 @@ double calcAddOneEn(Mono trialMono, int whichPoly, genarray< Poly > &brush) {
 
     m2 = trialMono;
     // temp
-    double elp_rad = (m2.x*m2.x + m2.y*m2.y)*asqinv + m2.z*m2.z*csqinv;
-    if (elp_rad < 1) {
-	e = 10000;
+//    double elp_rad = (m2.x*m2.x + m2.y*m2.y)*asqinv + m2.z*m2.z*csqinv;
+//    if (elp_rad < 1) {
+//	e = 10000;
+//    }
+    if (m2.z < zlo) {
+	e = 10000000;
+//	cout << "m2.z less than zlo" << endl;
     }
     
     else {
@@ -415,78 +443,82 @@ double calcAddOneEn(Mono trialMono, int whichPoly, genarray< Poly > &brush) {
 		m1 = brush(i).chain(j);
 
 		// Pair energy: 
-		dx = m1.x - m2.x;
-		dy = m1.y - m2.y;
-		dz = m1.z - m2.z;
-		drsq = dx*dx+dy*dy+dz*dz;
-		if (drsq < r_cutsq) {
-    //		cout << "\t\t\t: overlap! x,y,z: " << m1.x << " " << m1.y << " " << m1.z << endl;
-		    dr = sqrt(drsq);
-		    e_one = (1-dr/sigma);
-		    e_one = e_one*e_one;
-		    if (isnan(e_one)) {
-			cout << "BAD PAIR! " << m1.x << " " << m1.y << " " << m1.z << endl;
-			cout << "dr: " << dr << endl;
-			cout << "i, j: " << i << " " << j << endl;
-			cout << "nMono1: " << nMono1 << endl;
-		    }
-		    e += epsilon*e_one;
+//		dx = m1.x - m2.x;
+//		dy = m1.y - m2.y;
+//		dz = m1.z - m2.z;
+//		drsq = dx*dx+dy*dy+dz*dz;
+		drsq = monoDistSq(m1, m2);
+		if (drsq < sigma_sq) {
+//		    dr = sqrt(drsq);
+//		    e_one = (1-dr/sigma);
+//		    e_one = e_one*e_one;
+//		    if (isnan(e_one)) {
+//			cout << "BAD PAIR! " << m1.x << " " << m1.y << " " << m1.z << endl;
+//			cout << "dr: " << dr << endl;
+//			cout << "i, j: " << i << " " << j << endl;
+//			cout << "nMono1: " << nMono1 << endl;
+//		    }
+		    e += epsilon;
+		    // What is temperature in a hard sphere system with this Rosenbluth stuff?
 		}
 	    }
 	}
-
-	// Angles:
-	int len = brush(whichPoly).nMono;
-	double e_angle = 0;
-	if (len > 1) {
-	    double dx1, dy1, dz1, dx2, dy2, dz2, rsq1, rsq2, r1, r2;
-	    double c, s, dtheta;
-	    int jc1, jc2, jc3;
-
-	    m1 = brush(whichPoly).chain(len-2);
-	    m2 = brush(whichPoly).chain(len-1);
-	    m3 = trialMono;
-
-	    dx1 = m1.x - m2.x;
-	    dy1 = m1.y - m2.y;
-	    dz1 = m1.z - m2.z;
-	    rsq1 = dx1*dx1 + dy1*dy1 + dz1*dz1;
-	    r1 = sqrt(rsq1);
-
-	    dx2 = m3.x - m2.x;
-	    dy2 = m3.y - m2.y;
-	    dz2 = m3.z - m2.z;
-	    rsq2 = dx2*dx2 + dy2*dy2 + dz2*dz2;
-	    r2 = sqrt(rsq2);
-
-	    c = dx1*dx2 + dy1*dy2 + dz1*dz2;
-	    c /= r1*r2;
-	    if (c > 1.0) c = 1.0;
-	    if (c < -1.0) c = -1.0;
-	    dtheta = acos(c) - theta_0;
-	    e_angle = k_angle * dtheta*dtheta;
-	    if (e_angle > 40) {
-		cout << "WEIRD ANGLE!!!!" << endl;
-		cout << "len: " << len << endl;
-		cout << "r1, r2, c: " << r1 << " " << r2 << " " << c << endl;
-		cout << "\tacos(c): " << acos(c) << endl;
-		cout << "\tdtheta: " << dtheta << endl;
-		cout << "\te_angle: " << e_angle << endl;
-		cout << "\t mono1: " << m1.x <<  " " << m1.y << " " << m1.z << endl;
-		cout << "\t mono2: " << m2.x <<  " " << m2.y << " " << m2.z << endl;
-		cout << "\t mono3: " << m3.x <<  " " << m3.y << " " << m3.z << endl;
-		cout << "d1s: " << dx1 << " " << dy1 << " " << dz1 << endl;
-		cout << "d2s: " << dx2 << " " << dy2 << " " << dz2 << endl;
-
-	    }
-	    e += e_angle;
-	}
     }
+
+//	// Angles:
+//	int len = brush(whichPoly).nMono;
+//	double e_angle = 0;
+//	if (len > 1) {
+//	    double dx1, dy1, dz1, dx2, dy2, dz2, rsq1, rsq2, r1, r2;
+//	    double c, s, dtheta;
+//	    int jc1, jc2, jc3;
+//
+//	    m1 = brush(whichPoly).chain(len-2);
+//	    m2 = brush(whichPoly).chain(len-1);
+//	    m3 = trialMono;
+//
+//	    dx1 = m1.x - m2.x;
+//	    dy1 = m1.y - m2.y;
+//	    dz1 = m1.z - m2.z;
+//	    rsq1 = dx1*dx1 + dy1*dy1 + dz1*dz1;
+//	    r1 = sqrt(rsq1);
+//
+//	    dx2 = m3.x - m2.x;
+//	    dy2 = m3.y - m2.y;
+//	    dz2 = m3.z - m2.z;
+//	    rsq2 = dx2*dx2 + dy2*dy2 + dz2*dz2;
+//	    r2 = sqrt(rsq2);
+//
+//	    c = dx1*dx2 + dy1*dy2 + dz1*dz2;
+//	    c /= r1*r2;
+//	    if (c > 1.0) c = 1.0;
+//	    if (c < -1.0) c = -1.0;
+//	    dtheta = acos(c) - theta_0;
+//	    e_angle = k_angle * dtheta*dtheta;
+//	    if (e_angle > 40) {
+//		cout << "WEIRD ANGLE!!!!" << endl;
+//		cout << "len: " << len << endl;
+//		cout << "r1, r2, c: " << r1 << " " << r2 << " " << c << endl;
+//		cout << "\tacos(c): " << acos(c) << endl;
+//		cout << "\tdtheta: " << dtheta << endl;
+//		cout << "\te_angle: " << e_angle << endl;
+//		cout << "\t mono1: " << m1.x <<  " " << m1.y << " " << m1.z << endl;
+//		cout << "\t mono2: " << m2.x <<  " " << m2.y << " " << m2.z << endl;
+//		cout << "\t mono3: " << m3.x <<  " " << m3.y << " " << m3.z << endl;
+//		cout << "d1s: " << dx1 << " " << dy1 << " " << dz1 << endl;
+//		cout << "d2s: " << dx2 << " " << dy2 << " " << dz2 << endl;
+//
+//	    }
+//	    e += e_angle;
+//	}
+//    }
 
     return e;
 }
 
-void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly) {
+void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+	genarray< Poly > &trialThomson) { 
+
 // Generates trial additions to polymer whichPoly
 //    cout << "\t in genTrialPts \n";
 
@@ -504,109 +536,34 @@ void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tri
 	m1.y = 0;
 	m1.z = 0;
     }
-    m2 = brush(whichPoly).chain(nMono-1);
-    Mono cool;
+    m2 = brush(whichPoly).chain(nMono-1);	// trialPoly's tail monomer.
 
     // Check if distance between the trialPoly's tail and previousPoly tail monomers is close enough to warrant a new trial addition:
     double drsq = 0;
     double r_cutsq = 10;
     if (previousPoly > -1) {
 	Mono mprev = brush(previousPoly).chain(brush(previousPoly).nMono-1);
-	dx = m2.x - mprev.x;
-	dy = m2.y - mprev.y;
-	dz = m2.z - mprev.z;
-	drsq = dx*dx+dy*dy+dz*dz;
+	drsq = monoDistSq(m2, mprev);
     }
     else {
 	drsq = 0;
     }
+    double xo, yo, zo;
     if ( drsq < r_cutsq ) {
-
-	// First trial move is 180 degrees (straight)
-	dx = m2.x - m1.x;
-	dy = m2.y - m1.y;
-	dz = m2.z - m1.z;
-	mag = sqrt(dx*dx + dy*dy + dz*dz);
-
-	mt.x = m2.x + dx/mag;
-	mt.y = m2.y + dy/mag;
-	mt.z = m2.z + dz/mag;
-
-	trialMonos(whichPoly).chain(0) = mt;
-	
-	// Generate random points in the hemisphere above the last monomer's bond-vector:
-	double myangle = 0;
-	double x, y, z, u, v, theta, phi;
-    //    cout << "ntrial: " << nTrial << endl;
-
-	double dbgmag;
-	double anglecut;
-	double elp_rad;
-	double asqinv = 1/(elp_a*elp_a);
-	double csqinv = 1/(elp_c*elp_c);
-	double cc;
-	for (int i = 1; i < nTrial; i++) {
-	    u = gsl_rng_uniform(mrRand);
-	    v = gsl_rng_uniform(mrRand);
-	    theta = 2*PI*u;
-	    phi = acos(2*v-1.0);
-	    x = cos(theta)*sin(phi);
-	    y = sin(theta)*sin(phi);
-	    z = cos(phi);
-
-    //	myangle = acos( (-dx*x - dy*y - dz*z)/mag );		// The negative signs account for the direction of the bond vectors
-	    cc = (-dx*x - dy*y - dz*z)/mag;
-	    if (cc > 1.0) cc = 1.0;
-	    if (cc < -1.0) cc = -1.0;
-	    myangle = acos( cc );
-
-	    
-	    mt.x = m2.x + x;
-	    mt.y = m2.y + y;
-	    mt.z = m2.z + z;
-
-
-	    anglecut = PI/3.0;
-	    if ( fabs(myangle - theta_0) < anglecut) {
-		trialMonos(whichPoly).chain(i) = mt;
-
-		// Check angle:
-		double dx1, dy1, dz1, dx2, dy2, dz2, c, r1, r2, rsq1, rsq2;
-		dx1 = m2.x - m1.x;
-		dy1 = m2.y - m1.y;
-		dz1 = m2.z - m1.z;
-		rsq1 = dx1*dx1 + dy1*dy1 + dz1*dz1;
-		r1 = sqrt(rsq1);
-
-		dx2 = m2.x - mt.x;
-		dy2 = m2.y - mt.y;
-		dz2 = m2.z - mt.z;
-		rsq2 = dx2*dx2 + dy2*dy2 + dz2*dz2;
-		r2 = sqrt(rsq2);
-
-		c = dx1*dx2 + dy1*dy2 + dz1*dz2;
-		c /= r1*r2;
-		if (c > 1.0) c = 1.0;
-		if (c < -1.0) c = -1.0;
-		if (fabs(myangle - acos(c)) > 0.0001) {
-		    cout << "angle, anglecheck: " << myangle << " " << acos(c) << endl;
-		    cout << "\tcc: " << cc << endl;
-		    cout << "\td: " << dx << " " << dy << " " << dz << endl;
-		    cout << "\td/mag: " << dx/mag << " " << dy/mag << " " << dz/mag << endl;
-		    cout << "\ttrial: " << x << " " << y << " " << z << endl;
-		    cout << "\td1s: " << dx1 << " " << dy1 << " " << dz1 << endl;
-		    cout << "\td2s: " << dx2 << " " << dy2 << " " << dz2 << endl;
-		    cout << "\tr1, r2, c: " << r1 << " " << r2 << " " << c << endl;
-		}
-	    }
-	    else {
-		i--;
-	    }
+	// Use Thomson pts to generate trial pts around the tail monomer:
+	int rand = gsl_rng_uniform_int (mrRand, trialThomson.length());
+	Poly trialSphere = trialThomson(rand);
+	Mono ms;
+	for (int i = 0; i < trialSphere.nMono; i++) {
+	    ms = trialSphere.chain(i);
+	    ms.x = ms.x + m2.x;
+	    ms.y = ms.y + m2.y;
+	    ms.z = ms.z + m2.z;
+	    trialMonos(whichPoly).chain(i) = ms;
 	}
     }
 
 //    cout << "finished genTrialPts\n";
-
 }
 
 
@@ -619,11 +576,12 @@ void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, gen
     double en, rose;
     double dx, dy, dz;
     double drsq;
-    double r_cutsq = 10;
+    double r_cutsq = 5;
     double beta = -1/TEMP;
     Mono store;		
     store.z = 0;
     double temp = 0;
+//    double sigma_sq = sigma*sigma;
     //
     Mono dbg;
     //
@@ -631,10 +589,11 @@ void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, gen
 	if (previousPoly > -1) {
 	    Mono mprev = brush(previousPoly).chain(brush(previousPoly).nMono-1);
 	    Mono mtail = brush(i).chain(brush(i).nMono-1);
-	    dx = mtail.x - mprev.x;
-	    dy = mtail.y - mprev.y;
-	    dz = mtail.z - mprev.z;
-	    drsq = dx*dx+dy*dy+dz*dz;
+//	    dx = mtail.x - mprev.x;
+//	    dy = mtail.y - mprev.y;
+//	    dz = mtail.z - mprev.z;
+//	    drsq = dx*dx+dy*dy+dz*dz;
+	    drsq = monoDistSq(mtail, mprev);
 	}
 	else {
 	    drsq = 0;
@@ -647,8 +606,13 @@ void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, gen
 		    cout << " BAD ENERGY! trialmono: " << dbg.x << " " << dbg.y << " " << dbg.z << endl;
 		}
 		temp = beta*en;
-		rose = exp(temp);
-    //	    cout << "\t\t  en, rose: " << en << " " <<  rose << " " << endl;
+		if (temp > 1000)
+		    rose = 0;
+		else
+		    rose = exp(temp);
+		    
+//		rose = exp(temp);
+//		cout << "\t\t  en, rose: " << en << " " <<  rose << " " << endl;
 		store.x = en;
 		store.y = rose;
 		trialRose(i).chain(j) = store;
@@ -688,14 +652,15 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
     double ws = gsl_rng_uniform(mrRand)*w_move;
     double cumw = trialRose(0).chain(0).y;
     int start;
-//    cout << "ws: " << ws << endl;
+//    cout << "ws, cumw: " << ws << " " << cumw << endl;
     for (int i = 0; i < trialRose.length(); i++) {
 	if (i == 0) 
 	    start = 1;
 	else
 	    start = 0;
 	for (int j = start; j < nTrial; j++) {
-//	    cout << "\tcumw is: " << cumw << endl;
+//	    cout << "\ti, j, cumw is: " << i << " " << j << " " << cumw << endl;
+	    cumw = cumw + trialRose(i).chain(j).y;
 	    if (cumw > ws) {
 		is = i;
 		js = j;
@@ -710,8 +675,6 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 		i = trialRose.length()+1;
 		j = nTrial+1;
 	    }
-	    else
-		cumw = cumw + trialRose(i).chain(j).y;
 	}
     }
 
@@ -730,8 +693,12 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
     double mag2 = myMono.x*myMono.x + myMono.y*myMono.y + myMono.z*myMono.z;
     mag2 = sqrt(mag2);
 //    cout << "\tpicking i, j: " << is << " " << js << endl;
-//    cout << "\ttail mono: " << prev.x << " " << prev.y << " " << prev.z << ", " << mag1 << endl;
-//    cout << "\tadding mono: " << myMono.x << " " << myMono.y << " " << myMono.z << ", " << mag2 << endl;
+    if (myMono.z < zlo) {
+    cout << "bad mono! is, js: " << is << " " << js << endl;
+    cout << "trialRose en, rose: " << trialRose(is).chain(js).x << " " << trialRose(is).chain(js).y << endl;
+    cout << "\ttail mono: " << prev.x << " " << prev.y << " " << prev.z << ", " << mag1 << endl;
+    cout << "\tadding mono: " << myMono.x << " " << myMono.y << " " << myMono.z << ", " << mag2 << endl;
+    }
 //    cout << "\n";
 
     return w_move;
@@ -883,4 +850,19 @@ void makeSquareLattice (genarray <double> &atomPositions) {
     }
 }
 
+double monoDistSq (Mono m1, Mono m2) {
+    double dx = m1.x - m2.x;
+    double dy = m1.y - m2.y;
+    double dz = m1.z - m2.z;
+    if (dx > xhalf)
+	dx -= xbox;
+    if (dx < -xhalf)
+	dx += xbox;
+    if (dy > yhalf)
+	dy -= ybox;
+    if (dy < -yhalf)
+	dy += ybox;
+
+    return (dx*dx + dy*dy + dz*dz);
+}
 
