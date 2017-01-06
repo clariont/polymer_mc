@@ -166,7 +166,7 @@ int main(int argv, char *argc[]) {
 	    rose_w *= addMonomer (brush, trialMonos, trialRose, previous);
 
 	    // write:
-	    if (i%100 == 0)
+	    if (i%1000 == 0)
 		cout << "\tfinished addMonomer " << i << "\n";
 	}
 
@@ -637,7 +637,7 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 
 	}
     }
-    if (w_move < 10) {
+    if (w_move < 1) {
 	cout << "bad w_move!!!: \n";
 	for (int i = 0; i < trialRose.length(); i++) {
 //	    cout << "poly " << i << ": " << endl;
@@ -654,8 +654,8 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 //    cout << "w_move is: " << w_move << endl << endl;
     
 //    int is, js;		YOU HAVE A BUG!!! SOME HOW w_move is zero!!!
-    int is = 0;
-    int js = 0; 
+    int is = -1;
+    int js = -1; 
     // SELECT (Frenkel and Smit Algorithm 41):
     double ws = gsl_rng_uniform(mrRand)*w_move;
     double cumw = trialRose(0).chain(0).y;
@@ -685,6 +685,8 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 	    }
 	}
     }
+    if (is < 0 && js < 0)
+	cout << "stuck!  can't add monomer!" << endl;
 
 
 //    cout << "is: " << is << endl;
