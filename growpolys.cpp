@@ -39,7 +39,7 @@ int ngraft;
 int totalMono;
 //string spheroidFile;
 string thomsonFile;
-double r_cut = 1;
+double r_cut = 2.1;
 double sigma = 1.0;
 double epsilon = 10;
 double theta_0 = PI;
@@ -97,6 +97,10 @@ void readThomson (string inName, genarray< Poly > &trialThomson);
 void makeSquareLattice (genarray <double> &atomPositions);
 
 double monoDistSq (Mono m1, Mono m2);
+
+void rotate_pt (double &x1, double &y1, double &z1, double theta, double ax, double ay, double az); 
+
+void quat_mult (double &a1, double &b1, double &c1, double &d1, double a2, double b2, double c2, double d2);
 
 // Main
 
@@ -162,7 +166,7 @@ int main(int argv, char *argc[]) {
 	    rose_w *= addMonomer (brush, trialMonos, trialRose, previous);
 
 	    // write:
-	    if (i%500 == 0)
+	    if (i%100 == 0)
 		cout << "\tfinished addMonomer " << i << "\n";
 	}
 
@@ -269,7 +273,7 @@ void readConfig (string readName, genarray<double> &atomPositions)
 
 void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose) { 
 
-    int maxMono = 2000;
+    int maxMono = 10000;
 
     // Init monomer
     Mono dummy;
@@ -522,6 +526,7 @@ void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tri
 // Generates trial additions to polymer whichPoly
 //    cout << "\t in genTrialPts \n";
 
+    double r_cutsq = r_cut*r_cut;
     double dx, dy, dz, mag;
     Mono m1, m2, mt;
 
@@ -540,7 +545,6 @@ void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tri
 
     // Check if distance between the trialPoly's tail and previousPoly tail monomers is close enough to warrant a new trial addition:
     double drsq = 0;
-    double r_cutsq = 10;
     if (previousPoly > -1) {
 	Mono mprev = brush(previousPoly).chain(brush(previousPoly).nMono-1);
 	drsq = monoDistSq(m2, mprev);
@@ -576,7 +580,7 @@ void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, gen
     double en, rose;
     double dx, dy, dz;
     double drsq;
-    double r_cutsq = 5;
+    double r_cutsq = r_cut*r_cut;
     double beta = -1/TEMP;
     Mono store;		
     store.z = 0;
@@ -606,7 +610,7 @@ void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, gen
 		    cout << " BAD ENERGY! trialmono: " << dbg.x << " " << dbg.y << " " << dbg.z << endl;
 		}
 		temp = beta*en;
-		if (temp > 1000)
+		if (en > 1000)
 		    rose = 0;
 		else
 		    rose = exp(temp);
@@ -636,9 +640,13 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
     if (w_move < 10) {
 	cout << "bad w_move!!!: \n";
 	for (int i = 0; i < trialRose.length(); i++) {
-	    cout << "poly " << i << ": " << endl;
+//	    cout << "poly " << i << ": " << endl;
 	    for (int j = 0; j < nTrial; j++) {
-		cout << "\t trial, en, rose: " << j << ", " << trialRose(i).chain(j).x << ", " <<  trialRose(i).chain(j).y << endl;
+		if (trialRose(i).chain(j).y > 0.1) {
+		    cout << "i, j, rose: " << i << " " << j << " " << trialRose(i).chain(j).y << endl;
+		}
+//		cout << "i,j: " << i << " " << j << endl;
+//		cout << "\t trial, en, rose: " << j << ", " << trialRose(i).chain(j).x << ", " <<  trialRose(i).chain(j).y << endl;
 	    }
 	}
     }
@@ -826,11 +834,34 @@ void readThomson (string inName, genarray< Poly > &trialThomson) {
 	ctr++;
     }
     trialThomson(0) = mySphere;
-
     
 // Fill in trialThomson with rotations of the sphere (write quaternion crap laterz)
+    double ax, ay, az, at;
+    double latThomson = sqrt(nPts/(4*PI));
+    double angleThomson = 2*PI/latThomson;
+    double at3 = angleThomson/3.0;
+    at = at3;
+    Mono myM;
+    Poly newSphere = mySphere;
     for (int i = 1; i < 10; i++) {
-	trialThomson(i) = mySphere;
+//	trialThomson(i) = mySphere;
+	if (i < 4) {ax = 1; ay = 0; az = 0;}
+	if (i >= 4 && i < 7) {ax = 0; ay = 1; az = 0;}
+	if (i >= 7 && i < 9) {ax = 0; ay = 1; az = 0;}
+	for (int j = 0; j < mySphere.nMono; j++) {
+	    x = mySphere.chain(j).x;
+	    y = mySphere.chain(j).y;
+	    z = mySphere.chain(j).z;
+	    rotate_pt(x, y, z, at, ax, ay, az);
+	    myM.x = x;
+	    myM.y = y;
+	    myM.z = z;
+	    newSphere.chain(j) = myM;
+	}
+	at += at3; 
+	if (at > 3*at3)
+	    at = at3;
+	trialThomson(i) = newSphere;
     }
 }
 
@@ -864,5 +895,34 @@ double monoDistSq (Mono m1, Mono m2) {
 	dy += ybox;
 
     return (dx*dx + dy*dy + dz*dz);
+}
+
+void rotate_pt (double &x1, double &y1, double &z1, double theta, double ax, double ay, double az) {
+// Rotates point (x,y,z) about axis (ax, ay, az) by angle 'theta'
+    double cc = cos(theta*0.5);
+    double ss = sin(theta*0.5);
+    double bq = ss*ax;
+    double cq = ss*ay;
+    double dq = ss*az;
+    double bqi = -bq;
+    double cqi = -cq;
+    double dqi = -dq;
+    quat_mult(cc, bq, cq, dq, 0, x1, y1, z1);
+    quat_mult(cc, bq, cq, dq, cos(theta*0.5), bqi, cqi, dqi);
+    x1 = bq;
+    y1 = cq;
+    z1 = dq;
+
+}
+
+void quat_mult (double &a1, double &b1, double &c1, double &d1, double a2, double b2, double c2, double d2) {
+    double aa = a1*a2 - b1*b2 - c1*c2 - d1*d2;
+    double bb = a1*b2 + b1*a2 + c1*d2 - d1*c2;
+    double cc = a1*c2 - b1*d2 + c1*a2 + d1*b2;
+    double dd = a1*d2 + b1*c2 - c1*b2 + d1*a2;
+    a1 = aa;
+    b1 = bb;
+    c1 = cc;
+    d1 = dd;
 }
 
