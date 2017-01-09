@@ -102,6 +102,12 @@ void rotate_pt (double &x1, double &y1, double &z1, double theta, double ax, dou
 
 void quat_mult (double &a1, double &b1, double &c1, double &d1, double a2, double b2, double c2, double d2);
 
+
+void genTrialPts2( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+	genarray< Poly > &trialThomson, genarray< Poly > &trialRose); 
+
+void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr); 
 // Main
 
 int main(int argv, char *argc[]) {
@@ -123,6 +129,14 @@ int main(int argv, char *argc[]) {
 
     genarray< Poly > trialThomson;
     readThomson(thomsonFile, trialThomson);
+    Poly d;
+    for (int i = 0; i < trialThomson.length(); i++) {
+	cout << "sphere " << i << endl;
+	d = trialThomson(i);
+	for (int j = 0; j < d.nMono; j++) {
+	    cout << "\t" << d.chain(j).x << " " << d.chain(j).y << " " << d.chain(j).z << endl;
+	}
+    }
 
 
     genarray< double > atomPositions;
@@ -147,6 +161,7 @@ int main(int argv, char *argc[]) {
     outer.open("r_fac.dat", ios::out);
     outer1.open("anglevlen.dat", ios::out);
     int previous;
+    int dbgctr = 0;
     for (int j = 0; j < iterations; j++)  {
 	previous = -1;
 	for (int i = 0; i < totalMono; i++) {
@@ -154,20 +169,25 @@ int main(int argv, char *argc[]) {
 	    // generate all trial points
 	    for (int j = 0; j < brush.length(); j++) {
 //    	    cout << "\tgenerating for poly " << j << endl;
-		genTrialPts (j, brush, trialMonos, previous, trialThomson);
+//		genTrialPts2 (j, brush, trialMonos, previous, trialThomson, trialRose);
+		genTrialPts2dbg (j, brush, trialMonos, previous, trialThomson, trialRose, dbgctr);
 	    }
 
 	    // calc rosenbluth
 //	    cout << "\tcalcRosenbluth!" << endl;
-	    calcRosenbluth (brush, trialMonos, trialRose, previous);
+//	    calcRosenbluth (brush, trialMonos, trialRose, previous);
 
 	    // add monomer
 //	    cout << "adding monomer: " << i << endl;
 	    rose_w *= addMonomer (brush, trialMonos, trialRose, previous);
 
 	    // write:
-	    if (i%1000 == 0)
+	    if (i%1000 == 0) {
 		cout << "\tfinished addMonomer " << i << "\n";
+//		cout << "\t\tcomputed " << dbgctr << " monomers: " << endl;
+//		dbgctr = 0;
+	    }
+		
 	}
 
 	if (j%1 ==0 ) {
@@ -273,7 +293,7 @@ void readConfig (string readName, genarray<double> &atomPositions)
 
 void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose) { 
 
-    int maxMono = 10000;
+    int maxMono = 2000;
 
     // Init monomer
     Mono dummy;
@@ -444,14 +464,22 @@ double calcAddOneEn(Mono trialMono, int whichPoly, genarray< Poly > &brush) {
 	for (int i = 0; i < brush.length(); i++) {
 	    nMono1 = brush(i).nMono;
 	    for (int j = 0; j < nMono1; j++) {
-		m1 = brush(i).chain(j);
+//		m1 = brush(i).chain(j);
+		dx = brush(i).chain(j).x - m2.x;
+		dy = brush(i).chain(j).y - m2.y;
+		dz = brush(i).chain(j).z - m2.z;
+		if (dx > xhalf) dx -= xbox;
+		if (dy > yhalf) dy -= ybox;
+		if (dx < -xhalf) dx += xbox;
+		if (dy < -yhalf) dy += ybox;
+		drsq = dx*dx+dy*dy+dz*dz;
 
 		// Pair energy: 
 //		dx = m1.x - m2.x;
 //		dy = m1.y - m2.y;
 //		dz = m1.z - m2.z;
 //		drsq = dx*dx+dy*dy+dz*dz;
-		drsq = monoDistSq(m1, m2);
+//		drsq = monoDistSq(m1, m2);
 		if (drsq < sigma_sq) {
 //		    dr = sqrt(drsq);
 //		    e_one = (1-dr/sigma);
@@ -528,19 +556,12 @@ void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tri
 
     double r_cutsq = r_cut*r_cut;
     double dx, dy, dz, mag;
-    Mono m1, m2, mt;
+    Mono m2, mt;
 
 //    cout << "whichPoly: " << whichPoly << endl;
     int nMono = brush(whichPoly).nMono;
 //    cout << "nMono-1: " << (nMono-1) << endl;
-    if (nMono > 1) {
-	m1 = brush(whichPoly).chain(nMono-2);
-    }
-    else {
-	m1.x = 0;
-	m1.y = 0;
-	m1.z = 0;
-    }
+
     m2 = brush(whichPoly).chain(nMono-1);	// trialPoly's tail monomer.
 
     // Check if distance between the trialPoly's tail and previousPoly tail monomers is close enough to warrant a new trial addition:
@@ -563,6 +584,10 @@ void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tri
 	    ms.x = ms.x + m2.x;
 	    ms.y = ms.y + m2.y;
 	    ms.z = ms.z + m2.z;
+	    if(ms.x < xlo) ms.x = ms.x + xbox;
+	    if(ms.y < ylo) ms.y = ms.y + ybox;
+	    if(ms.x > xhi) ms.x = ms.x - xbox;
+	    if(ms.y > yhi) ms.y = ms.y - ybox;
 	    trialMonos(whichPoly).chain(i) = ms;
 	}
     }
@@ -637,23 +662,9 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 
 	}
     }
-    if (w_move < 1) {
-	cout << "bad w_move!!!: \n";
-	for (int i = 0; i < trialRose.length(); i++) {
-//	    cout << "poly " << i << ": " << endl;
-	    for (int j = 0; j < nTrial; j++) {
-		if (trialRose(i).chain(j).y > 0.1) {
-		    cout << "i, j, rose: " << i << " " << j << " " << trialRose(i).chain(j).y << endl;
-		}
-//		cout << "i,j: " << i << " " << j << endl;
-//		cout << "\t trial, en, rose: " << j << ", " << trialRose(i).chain(j).x << ", " <<  trialRose(i).chain(j).y << endl;
-	    }
-	}
-    }
 
 //    cout << "w_move is: " << w_move << endl << endl;
     
-//    int is, js;		YOU HAVE A BUG!!! SOME HOW w_move is zero!!!
     int is = -1;
     int js = -1; 
     // SELECT (Frenkel and Smit Algorithm 41):
@@ -685,8 +696,10 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 	    }
 	}
     }
-    if (is < 0 && js < 0)
+    if (is < 0 && js < 0) {
 	cout << "stuck!  can't add monomer!" << endl;
+	cout << "w_move is: " << w_move << endl;
+    }
 
 
 //    cout << "is: " << is << endl;
@@ -849,7 +862,7 @@ void readThomson (string inName, genarray< Poly > &trialThomson) {
 //	trialThomson(i) = mySphere;
 	if (i < 4) {ax = 1; ay = 0; az = 0;}
 	if (i >= 4 && i < 7) {ax = 0; ay = 1; az = 0;}
-	if (i >= 7 && i < 9) {ax = 0; ay = 1; az = 0;}
+	if (i >= 7 && i < 10) {ax = 0; ay = 0; az = 1;}
 	for (int j = 0; j < mySphere.nMono; j++) {
 	    x = mySphere.chain(j).x;
 	    y = mySphere.chain(j).y;
@@ -928,3 +941,66 @@ void quat_mult (double &a1, double &b1, double &c1, double &d1, double a2, doubl
     d1 = dd;
 }
 
+//void genTrialPts2( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+//	genarray< Poly > &trialThomson, genarray< Poly > &trialRose) { 
+//
+void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr) { 
+// Combines gentrialpts and calcrosenbluth:
+
+    double beta = -1/TEMP;
+    double r_cutsq = r_cut*r_cut;
+    double dx, dy, dz, mag;
+    Mono m2, mt, store;
+    double en, rose, myexp;
+
+    store.x = 0;
+    store.y = 0;
+    int nMono = brush(whichPoly).nMono;
+    m2 = brush(whichPoly).chain(nMono-1);	// trialPoly's tail monomer.
+
+    // Check if distance between the trialPoly's tail and previousPoly tail monomers is close enough to warrant a new trial addition:
+    double drsq = 0;
+    if (previousPoly > -1) {
+	Mono mprev = brush(previousPoly).chain(brush(previousPoly).nMono-1);
+	drsq = monoDistSq(m2, mprev);
+    }
+    else {
+	drsq = 0;
+    }
+    double xo, yo, zo;
+    if ( drsq < r_cutsq ) {
+	dbgctr++;
+	// Use Thomson pts to generate trial pts around the tail monomer:
+	int rand = gsl_rng_uniform_int (mrRand, trialThomson.length());
+	Poly trialSphere = trialThomson(rand);
+	Mono ms;
+	for (int i = 0; i < trialSphere.nMono; i++) {
+	    ms = trialSphere.chain(i);
+	    ms.x = ms.x + m2.x;
+	    ms.y = ms.y + m2.y;
+	    ms.z = ms.z + m2.z;
+	    if(ms.x < xlo) ms.x = ms.x + xbox;
+	    if(ms.y < ylo) ms.y = ms.y + ybox;
+	    if(ms.x > xhi) ms.x = ms.x - xbox;
+	    if(ms.y > yhi) ms.y = ms.y - ybox;
+	    trialMonos(whichPoly).chain(i) = ms;
+
+	    en = calcAddOneEn(ms, i, brush);
+//	    if (isnan(en)) {
+//		cout << " BAD ENERGY! trialmono: " << dbg.x << " " << dbg.y << " " << dbg.z << endl;
+//	    }
+	    myexp = beta*en;
+	    if (en > 1000)
+		rose = 0;
+	    else
+		rose = exp(myexp);
+		
+	    store.x = en;
+	    store.y = rose;
+	    trialRose(whichPoly).chain(i) = store;
+	}
+    }
+
+
+}
