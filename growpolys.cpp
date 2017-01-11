@@ -40,7 +40,9 @@ int totalMono;
 //string spheroidFile;
 string thomsonFile;
 double r_cut = 2.1;
+double r_cutsq = r_cut*r_cut;
 double sigma = 1.0;
+double sigma_sq = sigma*sigma;
 double epsilon = 10;
 double theta_0 = PI;
 double k_angle = 2;
@@ -51,6 +53,7 @@ double elp_c = 3.0;
 double iterations = 1;
 double lattice_size = 1.0;
 double box_len = 10;
+int writeGrowth = 1000;
 
 // Rosenbluth params:
 int nTrial = 10;
@@ -75,7 +78,7 @@ void paramReader (string fileName);
 
 void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose); 
 
-double calcAddOneEn(Mono trialMono, int whichPoly, genarray< Poly > &brush); 
+double calcAddOneEn(Mono &trialMono, int whichPoly, genarray< Poly > &brush); 
 
 void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
 	genarray< Poly > &trialThomson); 
@@ -108,6 +111,9 @@ void genTrialPts2( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tr
 
 void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
 	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr); 
+
+void writeLengths (string outName, genarray< Poly > &brush, int growthStep); 
+
 // Main
 
 int main(int argv, char *argc[]) {
@@ -157,20 +163,22 @@ int main(int argv, char *argc[]) {
 
 
     double rose_w = 1;
-    ofstream outer, outer1;
+    ofstream outer, outer1, outer2;
     outer.open("r_fac.dat", ios::out);
     outer1.open("anglevlen.dat", ios::out);
+    outer2.open("all_lens.dat", ios::out);
     int previous;
     int dbgctr = 0;
     for (int j = 0; j < iterations; j++)  {
+	dbgctr = 0;
 	previous = -1;
 	for (int i = 0; i < totalMono; i++) {
 
 	    // generate all trial points
-	    for (int j = 0; j < brush.length(); j++) {
+	    for (int k = 0; k < brush.length(); k++) {
 //    	    cout << "\tgenerating for poly " << j << endl;
 //		genTrialPts2 (j, brush, trialMonos, previous, trialThomson, trialRose);
-		genTrialPts2dbg (j, brush, trialMonos, previous, trialThomson, trialRose, dbgctr);
+		genTrialPts2dbg (k, brush, trialMonos, previous, trialThomson, trialRose, dbgctr);
 	    }
 
 	    // calc rosenbluth
@@ -183,10 +191,14 @@ int main(int argv, char *argc[]) {
 
 	    // write:
 	    if (i%1000 == 0) {
-		cout << "\tfinished addMonomer " << i << "\n";
+//		cout << "\tfinished addMonomer " << i << "\n";
 //		cout << "\t\tcomputed " << dbgctr << " monomers: " << endl;
-//		dbgctr = 0;
+		cout << "addMonomer, computed: " << i << " " << dbgctr << endl;
+		dbgctr = 0;
 	    }
+	    if (i%writeGrowth == 0 && (i > 0)) {
+		writeLengths("all_lens.dat", brush, i);
+	    }	
 		
 	}
 
@@ -212,11 +224,13 @@ int main(int argv, char *argc[]) {
     }
     ofstream outman;
     outman.open("planar_hist.dat", ios::out);
-    for (int i = 0; i < brush.length(); i++) {
+    for (int i = 0; i < hist.length(); i++) {
 	outman << i << "\t" << hist(i)/double(iterations) << endl;
     }
 
     return 0;
+    outer1.close();
+    outer2.close();
 }
 
 void paramReader (string fileName)
@@ -293,7 +307,8 @@ void readConfig (string readName, genarray<double> &atomPositions)
 
 void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose) { 
 
-    int maxMono = 2000;
+//    int maxMono = 50000;
+    int maxMono = 20000;
 
     // Init monomer
     Mono dummy;
@@ -430,44 +445,44 @@ double calcEnergy(genarray< Poly > &brush) {
     return e;
 }
 
-double calcAddOneEn(Mono trialMono, int whichPoly, genarray< Poly > &brush) {
+double calcAddOneEn(Mono &trialMono, int whichPoly, genarray< Poly > &brush) {
 // Calculate pair energies and angle of adding trialMono to polymer whichPoly. 
 // New - use step potential - e = epsilon at overlap.
 //    cout << "\t in calcAddOneEn! " << endl;
 //    double asqinv = 1/(elp_a*elp_a);
 //    double csqinv = 1/(elp_c*elp_c);
 
-    double r_cutsq = r_cut*r_cut;
-    double sigma_sq = sigma*sigma;
+//    double r_cutsq = r_cut*r_cut;
+//    double sigma_sq = sigma*sigma;
     double e = 0;
     int startMono;
     int ic, jc, nMono1, nMono2;
     double dx, dy, dz, drsq, dr;
     double e_one;
-    Mono m1, m2, m3;
+//    Mono m1, m2, m3;
 
-    m2 = trialMono;
+//    m2 = trialMono;
     // temp
 //    double elp_rad = (m2.x*m2.x + m2.y*m2.y)*asqinv + m2.z*m2.z*csqinv;
 //    if (elp_rad < 1) {
 //	e = 10000;
 //    }
-    if (m2.z < zlo) {
+    if (trialMono.z < zlo) {
 	e = 10000000;
 //	cout << "m2.z less than zlo" << endl;
     }
     
     else {
-	Mono tempm = brush(whichPoly).chain( brush(whichPoly).nMono-1 );
+//	Mono tempm = brush(whichPoly).chain( brush(whichPoly).nMono-1 );
     //    cout << "\t\t\t last Mono: " << tempm.x << " " << tempm.y << " " << tempm.z << endl;
     //    cout << "\t\t\t trialMono: " << m2.x << " " << m2.y << " " << m2.z << endl;
 	for (int i = 0; i < brush.length(); i++) {
 	    nMono1 = brush(i).nMono;
 	    for (int j = 0; j < nMono1; j++) {
 //		m1 = brush(i).chain(j);
-		dx = brush(i).chain(j).x - m2.x;
-		dy = brush(i).chain(j).y - m2.y;
-		dz = brush(i).chain(j).z - m2.z;
+		dx = brush(i).chain(j).x - trialMono.x;
+		dy = brush(i).chain(j).y - trialMono.y;
+		dz = brush(i).chain(j).z - trialMono.z;
 		if (dx > xhalf) dx -= xbox;
 		if (dy > yhalf) dy -= ybox;
 		if (dx < -xhalf) dx += xbox;
@@ -716,7 +731,7 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
     double mag2 = myMono.x*myMono.x + myMono.y*myMono.y + myMono.z*myMono.z;
     mag2 = sqrt(mag2);
 //    cout << "\tpicking i, j: " << is << " " << js << endl;
-    if (myMono.z < zlo) {
+    if (myMono.z < zlo || myMono.x > xhi || myMono.x < xlo || myMono.y > yhi || myMono.y < ylo) {
     cout << "bad mono! is, js: " << is << " " << js << endl;
     cout << "trialRose en, rose: " << trialRose(is).chain(js).x << " " << trialRose(is).chain(js).y << endl;
     cout << "\ttail mono: " << prev.x << " " << prev.y << " " << prev.z << ", " << mag1 << endl;
@@ -746,8 +761,8 @@ void writeBrush (string outName, genarray< Poly > &brush) {
     }
     int dummies = (ngraft+totalMono) - ctr;
     for (int i = 0; i < dummies; i++) {
-	myOut << "O 0 0 0 \n";
-	myOut << "N 0 0 0 \n";
+	myOut << "O 0 0 -2 \n";
+	myOut << "N 0 0 -2 \n";
     }
 //    myOut << "\n";
 //    myOut << "ITEM: TIMESTEP\n" << "0" << "\nITEM: NUMBER OF ATOMS\n";
@@ -957,36 +972,61 @@ void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > 
     store.x = 0;
     store.y = 0;
     int nMono = brush(whichPoly).nMono;
-    m2 = brush(whichPoly).chain(nMono-1);	// trialPoly's tail monomer.
+//    m2 = brush(whichPoly).chain(nMono-1);	// trialPoly's tail monomer.
 
     // Check if distance between the trialPoly's tail and previousPoly tail monomers is close enough to warrant a new trial addition:
     double drsq = 0;
     if (previousPoly > -1) {
-	Mono mprev = brush(previousPoly).chain(brush(previousPoly).nMono-1);
-	drsq = monoDistSq(m2, mprev);
+//	Mono mprev = brush(previousPoly).chain(brush(previousPoly).nMono-1);
+//	drsq = monoDistSq(m2, mprev);
+
+	dx = brush(whichPoly).chain(nMono-1).x - brush(previousPoly).chain(brush(previousPoly).nMono-1).x;
+	dy = brush(whichPoly).chain(nMono-1).y - brush(previousPoly).chain(brush(previousPoly).nMono-1).y;
+	dz = brush(whichPoly).chain(nMono-1).z - brush(previousPoly).chain(brush(previousPoly).nMono-1).z;
+	if (dx > xhalf)
+	    dx -= xbox;
+	if (dx < -xhalf)
+	    dx += xbox;
+	if (dy > yhalf)
+	    dy -= ybox;
+	if (dy < -yhalf)
+	    dy += ybox;
+	drsq = dx*dx + dy*dy + dz*dz;
     }
     else {
 	drsq = 0;
     }
     double xo, yo, zo;
+    int trialnMono;
     if ( drsq < r_cutsq ) {
 	dbgctr++;
+//	cout << "\t\t" << whichPoly << endl;
 	// Use Thomson pts to generate trial pts around the tail monomer:
 	int rand = gsl_rng_uniform_int (mrRand, trialThomson.length());
 	Poly trialSphere = trialThomson(rand);
 	Mono ms;
+	trialnMono = trialThomson(rand).nMono;
 	for (int i = 0; i < trialSphere.nMono; i++) {
+//	for (int i = 0; i < trialnMono; i++) {
+	    // start old stuff
 	    ms = trialSphere.chain(i);
-	    ms.x = ms.x + m2.x;
-	    ms.y = ms.y + m2.y;
-	    ms.z = ms.z + m2.z;
+//	    ms.x = ms.x + m2.x;
+//	    ms.y = ms.y + m2.y;
+//	    ms.z = ms.z + m2.z;
+	    ms.x = ms.x + brush(whichPoly).chain(nMono-1).x;
+	    ms.y = ms.y + brush(whichPoly).chain(nMono-1).y;
+	    ms.z = ms.z + brush(whichPoly).chain(nMono-1).z;
+
 	    if(ms.x < xlo) ms.x = ms.x + xbox;
 	    if(ms.y < ylo) ms.y = ms.y + ybox;
 	    if(ms.x > xhi) ms.x = ms.x - xbox;
 	    if(ms.y > yhi) ms.y = ms.y - ybox;
 	    trialMonos(whichPoly).chain(i) = ms;
+	    // end old stuff
+
 
 	    en = calcAddOneEn(ms, i, brush);
+//	    en = calcAddOneEn(trialMonos(whichPoly).chain(i), i, brush);
 //	    if (isnan(en)) {
 //		cout << " BAD ENERGY! trialmono: " << dbg.x << " " << dbg.y << " " << dbg.z << endl;
 //	    }
@@ -1001,6 +1041,21 @@ void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > 
 	    trialRose(whichPoly).chain(i) = store;
 	}
     }
+
+
+}
+
+void writeLengths (string outName, genarray< Poly > &brush, int growthStep) {
+
+    int ctr = 0;
+
+    ofstream myOut;
+    myOut.open(outName.c_str(), ios::app);
+
+    for (int i = 0; i < brush.length(); i++) {
+	myOut << growthStep << "\t" << brush(i).nMono << "\n";
+    }
+    myOut.close();
 
 
 }
