@@ -260,6 +260,8 @@ void paramReader (string fileName)
     ylo = -yhi;
     zlo = 0;
 
+    int ngrafter = box_len/lattice_size;
+    writeGrowth = (ngrafter*ngrafter)*0.5;
 
 }
 
