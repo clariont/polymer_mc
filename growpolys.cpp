@@ -25,6 +25,23 @@ using namespace std;
 
 const double smalleps = 1e-6;
 
+class twoInt {
+    public:
+	int nextp, nextm;
+};
+class Mono {
+    public:
+	double x, y, z;
+	int nextp, nextm;		    // pointer to next Mono in cell
+//    int next;			    // The next atomID in the polymer
+};
+
+class Poly {
+    public: 
+	int nMono;
+	genarray < Mono > chain;
+};
+
 // Global Variables
 const double PI = 3.14159265359;
 gsl_rng * mrRand;
@@ -34,7 +51,7 @@ double mass = 1.0;
 int totalSteps = 10000000;
 int writeEvery = 1000;
 double xlo, xhi, ylo, yhi, zlo, zhi;
-double xhalf, yhalf, xbox, ybox;
+double xhalf, yhalf, zhalf, xbox, ybox, zbox;
 int ngraft;
 int totalMono;
 //string spheroidFile;
@@ -58,25 +75,21 @@ int writeGrowth = 1000;
 // Rosenbluth params:
 int nTrial = 10;
 
+// Cell Lists:
+double cellSize = 2.0;
+double cellSizeInv = 1/cellSize;
+int ncellx, ncelly, ncellz, ncells;
+int nOffset = 14;
 
-class Mono {
-    public:
-	double x, y, z;
-//    int next;			    // The next atomID in the polymer
-};
 
-class Poly {
-    public: 
-	int nMono;
-	genarray < Mono > chain;
-};
 
 // Functions
 void readConfig (string readName, genarray<double> &atomPositions);
 
 void paramReader (string fileName);
 
-void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose); 
+void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose,
+	genarray<twoInt> &cellList, genarray<Mono> &offsets ); 
 
 double calcAddOneEn(Mono &trialMono, int whichPoly, genarray< Poly > &brush); 
 
@@ -85,13 +98,14 @@ void genTrialPts( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tri
 
 void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int previousPoly); 
 
-double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int &previousPoly); 
+double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int &previousPoly,
+	genarray<twoInt> &cellList); 
 
 void writeBrush (string outName, genarray< Poly > &brush); 
 
 void writeLammps (string outName, genarray< Poly > &brush);
 
-void clearBrush (genarray< Poly > &brush);
+void clearBrush (genarray< Poly > &brush, genarray<twoInt> &cellList);
 
 void calcPolarAngle (genarray< Poly > &brush, genarray< double > &polarAngles); 
 
@@ -110,13 +124,21 @@ void genTrialPts2( int whichPoly, genarray< Poly > &brush, genarray < Poly > &tr
 	genarray< Poly > &trialThomson, genarray< Poly > &trialRose); 
 
 void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
-	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr); 
+	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr,
+	genarray<twoInt> &cellList, genarray<Mono> &offsets); 
 
 void writeLengths (string outName, genarray< Poly > &brush, int growthStep); 
+
+int getCellIndex (Mono &m, int &xind, int &yind, int &zind); 
+
+double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush, genarray<twoInt> &cellList, genarray<Mono> &offsets);
 
 // Main
 
 int main(int argv, char *argc[]) {
+    cout << "test int:" << endl;
+    cout << "1.25, 1.75: " << int(1.25) << ", " << int(1.75) << endl;
+    cout << "-1.25, -1.75: " << int(-1.25) << ", " << int(-1.75) << endl;
     cout << "Command line arguments: paramFile thomsonFile" << endl;
     // Read parameter file
     string paramFile(argc[1]);
@@ -144,6 +166,9 @@ int main(int argv, char *argc[]) {
 	}
     }
 
+    // Dynamic Arrays:
+    genarray<twoInt> cellList;
+    genarray<Mono> offsets(nOffset);
 
     genarray< double > atomPositions;
     makeSquareLattice (atomPositions);
@@ -152,7 +177,8 @@ int main(int argv, char *argc[]) {
     genarray< Poly > brush;
     genarray< Poly > trialMonos;
     genarray< Poly > trialRose;
-    initPolys (atomPositions, brush, trialMonos, trialRose);
+
+    initPolys (atomPositions, brush, trialMonos, trialRose, cellList, offsets);
     cout << "finished initPolys " << "\n";
     
     genarray<double> hist(1000);
@@ -178,7 +204,7 @@ int main(int argv, char *argc[]) {
 	    for (int k = 0; k < brush.length(); k++) {
 //    	    cout << "\tgenerating for poly " << j << endl;
 //		genTrialPts2 (j, brush, trialMonos, previous, trialThomson, trialRose);
-		genTrialPts2dbg (k, brush, trialMonos, previous, trialThomson, trialRose, dbgctr);
+		genTrialPts2dbg (k, brush, trialMonos, previous, trialThomson, trialRose, dbgctr, cellList, offsets);
 	    }
 
 	    // calc rosenbluth
@@ -187,7 +213,7 @@ int main(int argv, char *argc[]) {
 
 	    // add monomer
 //	    cout << "adding monomer: " << i << endl;
-	    rose_w *= addMonomer (brush, trialMonos, trialRose, previous);
+	    rose_w *= addMonomer (brush, trialMonos, trialRose, previous, cellList);
 
 	    // write:
 	    if (i%1000 == 0) {
@@ -220,7 +246,8 @@ int main(int argv, char *argc[]) {
 	
 
 	// Reset brush:
-	clearBrush(brush);
+	clearBrush(brush, cellList);
+	cout << "finished clearbrush" << endl;
     }
     ofstream outman;
     outman.open("planar_hist.dat", ios::out);
@@ -251,12 +278,14 @@ void paramReader (string fileName)
     in.close();
     xhi = 0.5*box_len;
     yhi = 0.5*box_len;
-    zhi = 100000;
+    zhi = 10000;
     xlo = -xhi;
     xhalf = xhi;
     yhalf = yhi;
     xbox = box_len;
     ybox = box_len;
+    zbox = zhi;
+    zhalf = zbox*0.5;
     ylo = -yhi;
     zlo = 0;
 
@@ -307,10 +336,40 @@ void readConfig (string readName, genarray<double> &atomPositions)
 
 }
 
-void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose) { 
+//void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose) { 
+void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose,
+	genarray<twoInt> &cellList, genarray<Mono> &offsets ) { 
 
 //    int maxMono = 50000;
-    int maxMono = 20000;
+    int maxMono = 1000;
+
+    // Init cellList:
+    ncellx = xbox/cellSize;
+    ncelly = ybox/cellSize;
+    ncellz = zbox/cellSize;
+    ncells = ncellx*ncelly*ncellz;
+    cellList.resize(ncells);
+    for (int i = 0; i < ncells; i++) {
+	cellList(i).nextp = -1;	    // -1 means empty cell!
+	cellList(i).nextm = -1;	    // -1 means empty cell!
+    }
+    
+    offsets.resize(nOffset);
+    offsets(0).x = 0; offsets(0).y = 0; offsets(0).z = 0;
+    offsets(1).x = 1; offsets(1).y = 0; offsets(1).z = 0;
+    offsets(2).x = 1; offsets(2).y = 1; offsets(2).z = 0;
+    offsets(3).x = 0; offsets(3).y = 1; offsets(3).z = 0;
+    offsets(4).x = -1; offsets(4).y = 1; offsets(4).z = 0;
+    offsets(5).x = 0; offsets(5).y = 0; offsets(5).z = 1;
+    offsets(6).x = 1; offsets(6).y = 0; offsets(6).z = 1;
+    offsets(7).x = 1; offsets(7).y = 1; offsets(7).z = 1;
+    offsets(8).x = 0; offsets(8).y = 1; offsets(8).z = 1;
+    offsets(9).x = -1; offsets(9).y = 1; offsets(9).z = 1;
+    offsets(10).x = -1; offsets(10).y = 0; offsets(10).z = 1;
+    offsets(11).x = -1; offsets(11).y = -1; offsets(11).z = 1;
+    offsets(12).x = 0; offsets(12).y = -1; offsets(12).z = 1;
+    offsets(13).x = 1; offsets(13).y = -1; offsets(13).z = 1;
+
 
     // Init monomer
     Mono dummy;
@@ -329,7 +388,8 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
 
     // Init all polymers, set first monomer to the spheroid monomers.
     cout << "ngraft is: " << ngraft << endl;
-    int ic;
+    int ic, dx, dy, dz;
+    int cellIndex, cellm, cellp;
     brush.resize(ngraft);
     for (int i = 0; i < ngraft; i++) {
 	brush(i) = tempPoly;
@@ -339,8 +399,48 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
 	dummy.x = spheroidPos(ic);
 	dummy.y = spheroidPos(ic+1);
 	dummy.z = spheroidPos(ic+2);
+	cellIndex = getCellIndex(dummy, dx, dy, dz);
+	dummy.nextp = cellList(cellIndex).nextp;
+	dummy.nextm = cellList(cellIndex).nextm;
+	cellList(cellIndex).nextp = i; 
+	cellList(cellIndex).nextm = 0; 
+
 	brush(i).chain(0) = dummy;
+
     }
+//    cout << "init cellList: "<< endl;
+//    int nextp, nextm;
+//    Mono meme;
+//    int checker = 0;
+//    for (int i = 0; i < cellList.length(); i++) {
+//	if (cellList(i).nextp >= 0) {
+//	    cout << "cell: "<< i << endl;
+////	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
+//	    nextp = cellList(i).nextp; 
+//	    nextm = cellList(i).nextm; 
+//	    while (nextp >= 0) {
+//		cellp = nextp;
+//		cellm = nextm;
+//		meme = brush(cellp).chain(cellm);
+//		cout << "\tp, m: " << cellp << " " << cellm << endl;
+//		nextp = meme.nextp;
+//		nextm = meme.nextm;
+//		checker++;
+//
+//	    }
+//	}
+//
+//    }
+//    cout << "init cellList check, counted " << checker << " Monos\n";
+//    cout << "init brush: " << endl;
+//    Mono lol;
+//    for (int i = 0; i < brush.length(); i++) {
+//	for (int j = 0; j < brush(i).nMono; j++) {
+//	    lol = brush(i).chain(j);
+//	    cout << "\t x y z nextp nextm" << lol.x << " " << lol.y << " " << lol.z << " " << lol.nextp << " " << lol.nextm << endl;
+//
+//	}
+//    }
     cout << "2 \n";
 
     // Init trialMonos, trialRose:
@@ -362,6 +462,7 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
 	trialRose(i) = tempPoly;
     }
 
+
 }
 
 
@@ -369,7 +470,6 @@ double calcEnergy(genarray< Poly > &brush) {
 // Soft potential - V (r) = epsilon*(1 - r/sigma)^2
 // Harmonic angles - V_a (r) = k*(theta - theta_0)^2
 
-    double r_cutsq = r_cut*r_cut;
     double e = 0;
     int startMono;
     int ic, jc, nMono1, nMono2;
@@ -669,7 +769,9 @@ void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, gen
 
 }
 
-double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int &previousPoly) {
+//double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int &previousPoly) {
+double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int &previousPoly,
+	genarray<twoInt> &cellList) {
 // Probabilities (rosenbluth factors) are stored in trialRose.  Select one of the trialMonomers from brush.
 
     double w_move = 0;					// rosenbluth factor for the (entire) trial move
@@ -720,9 +822,31 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 
 
 //    cout << "is: " << is << endl;
-    int end = brush(is).nMono;
 //    cout << "is, js, end: " << is << " " << js << " " << end << endl;
+    int end = brush(is).nMono;
+    if (end >= 1000) {
+	genarray<Mono> temp = brush(is).chain;
+	temp.resize(10000);
+	brush(is).chain = temp;
+    }
+
     brush(is).chain(end) = trialMonos(is).chain(js);
+
+    // Update cellList:
+    int dx, dy, dz;
+//    cout << "adding mono: " << is << " " << end << endl;
+    int cellIndex = getCellIndex(brush(is).chain(end), dx, dy, dz);
+//    cout << "cell before: " << cellList(cellIndex).nextp << " " << cellList(cellIndex).nextm << endl;
+    brush(is).chain(end).nextp = cellList(cellIndex).nextp;
+    brush(is).chain(end).nextm = cellList(cellIndex).nextm;
+    cellList(cellIndex).nextp = is;
+    cellList(cellIndex).nextm = end;
+//    cout << "cell after: " << cellList(cellIndex).nextp << " " << cellList(cellIndex).nextm << endl;
+//    cout << "further check: " << brush(is).chain(end).nextp << " " << brush(is).chain(end).nextm << endl;
+    int p = brush(is).chain(end).nextp;
+    int m = brush(is).chain(end).nextm;
+//    if (p >= 0)
+//	cout << "the old guy: " << brush(p).chain(m).nextp << " " << brush(p).chain(m).nextm << endl;
     brush(is).nMono = end + 1;
 
     previousPoly = is;
@@ -780,10 +904,51 @@ void writeBrush (string outName, genarray< Poly > &brush) {
 }
 
 
-void clearBrush (genarray< Poly > &brush) {
+void clearBrush (genarray< Poly > &brush, genarray<twoInt> &cellList) {
+    // clear cell list
+    for (int i = 0; i < ncells; i++) {
+	cellList(i).nextp = -1;	    // -1 means empty cell!
+	cellList(i).nextm = -1;	    // -1 means empty cell!
+    }
+
+    int cellIndex;
+    int dx, dy, dz;
+    Mono dummy;
     for (int i = 0; i < brush.length(); i++) {
 	brush(i).nMono = 1;
+
+	dummy = brush(i).chain(0);
+	cellIndex = getCellIndex(dummy, dx, dy, dz);
+	dummy.nextp = cellList(cellIndex).nextp;
+	dummy.nextm = cellList(cellIndex).nextm;
+	cellList(cellIndex).nextp = i; 
+	cellList(cellIndex).nextm = 0; 
     }
+//    cout << "init cellList: "<< endl;
+//
+//    int cellp, cellm, nextp, nextm;
+//    Mono meme;
+//    int checker = 0;
+//    for (int i = 0; i < cellList.length(); i++) {
+//	if (cellList(i).nextp >= 0) {
+//	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
+//	    nextp = cellList(i).nextp; 
+//	    nextm = cellList(i).nextm; 
+//	    while (nextp >= 0) {
+//		cellp = nextp;
+//		cellm = nextm;
+//		meme = brush(cellp).chain(cellm);
+//		cout << "p, m: " << cellp << " " << cellm << endl;
+//		nextp = meme.nextp;
+//		nextm = meme.nextm;
+//		checker++;
+//
+//	    }
+//	}
+//
+//    }
+//    cout << "clearbrush cellList check, counted " << checker << " Monos\n";
+
 }
 
 void calcPolarAngle (genarray< Poly > &brush, genarray< double > &polarAngles) {
@@ -961,8 +1126,11 @@ void quat_mult (double &a1, double &b1, double &c1, double &d1, double a2, doubl
 //void genTrialPts2( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
 //	genarray< Poly > &trialThomson, genarray< Poly > &trialRose) { 
 //
+//void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+//	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr) { 
 void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
-	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr) { 
+	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr,
+	genarray<twoInt> &cellList, genarray<Mono> &offsets) { 
 // Combines gentrialpts and calcrosenbluth:
 
     double beta = -1/TEMP;
@@ -1009,6 +1177,7 @@ void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > 
 	Mono ms;
 	trialnMono = trialThomson(rand).nMono;
 	for (int i = 0; i < trialSphere.nMono; i++) {
+//	    cout << "\t\t\t" << i << endl;
 //	for (int i = 0; i < trialnMono; i++) {
 	    // start old stuff
 	    ms = trialSphere.chain(i);
@@ -1027,7 +1196,8 @@ void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > 
 	    // end old stuff
 
 
-	    en = calcAddOneEn(ms, i, brush);
+//	    en = calcAddOneEn(ms, i, brush);
+	    en = calcAddOneEn_cell(ms, whichPoly, brush, cellList, offsets);
 //	    en = calcAddOneEn(trialMonos(whichPoly).chain(i), i, brush);
 //	    if (isnan(en)) {
 //		cout << " BAD ENERGY! trialmono: " << dbg.x << " " << dbg.y << " " << dbg.z << endl;
@@ -1061,3 +1231,178 @@ void writeLengths (string outName, genarray< Poly > &brush, int growthStep) {
 
 
 }
+
+int getCellIndex (Mono &m, int &xind, int &yind, int &zind) {
+    xind = (floor(m.x - xlo)*cellSizeInv);
+    yind = (floor(m.y - ylo)*cellSizeInv);
+    zind = (floor(m.z - zlo)*cellSizeInv);
+
+    return zind*ncelly + yind*ncellx + xind;
+//    return xind*ncellx + yind*ncelly + zind;
+
+}
+
+/* Optimize this later...
+void genTrialPts_cell(genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr) { 
+// Combines gentrialpts and calcrosenbluth and calcen:
+// Also uses cell Lists
+
+// Only update the trialThomson monomers for polymer tails in the neighboring cells of previousPoly's tail (the previously added Mono).
+
+    int twosigsq = 4*sigma;
+    double beta = -1/TEMP;
+    double r_cutsq = r_cut*r_cut;
+    double dx, dy, dz, mag;
+    Mono m2, mt, store;
+    double en, rose, myexp;
+
+    store.x = 0;
+    store.y = 0;
+    int nMono = brush(whichPoly).nMono;
+    int prevTail;
+    
+    // Loop over cells:
+    int xind, yind, zind, x2ind, y2ind, z2ind, cell2ind;
+    int m2p, m2m, next, polyTail;
+    prevTail = brush(previousPoly).nMono - 1;
+    int myCell = getCellIndex( brush(previousPoly).chain(prevTail), xind, yind, zind );
+    Mono m1, m2;
+    m1 = brush(previousPoly).chain(prevTail);
+    for (int k = 0; k < nOffset; i++) {
+	x2ind = xind + offsets(k).x;
+	y2ind = yind + offsets(k).y;
+	z2ind = zind + offsets(k).z;
+	if (x2ind > (ncellx-1)) x2ind = 0;
+	if (y2ind > (ncellx-1)) x2ind = 0;
+	if (x2ind < 0) x2ind = ncellx - 1;
+	if (y2ind < 0) y2ind = ncelly - 1;
+	cell2ind = x2ind*ncellx + y2ind*ncelly + z2ind;
+
+	m2p = cellList(cell2ind).poly;
+	m2m = cellList(cell2ind).mono;
+	next = 1;
+	while(next >= 0) {		// loops over the Monos in cell 1.
+	    // Check it's not self
+	    if (m2p != previousPoly && m2m != prevTail) {	  
+		// Check if it's a tail.
+		polyTail = brush(m2p).nMono-1;
+		if (m2m == polyTail) {
+		    m2 = brush(m2p).chain(m2m);
+		    // Distance check:
+		    if (monoDistSq < r_cutsq) {
+			dbgctr++;
+			// Use Thomson pts to generate trial pts around the tail monomer:
+			int rand = gsl_rng_uniform_int (mrRand, trialThomson.length());
+			Poly trialSphere = trialThomson(rand);
+			Mono ms;
+			trialnMono = trialThomson(rand).nMono;
+			for (int i = 0; i < trialSphere.nMono; i++) {
+			    ms = trialSphere.chain(i);
+			    ms.x = ms.x + brush(whichPoly).chain(nMono-1).x;
+			    ms.y = ms.y + brush(whichPoly).chain(nMono-1).y;
+			    ms.z = ms.z + brush(whichPoly).chain(nMono-1).z;
+
+			    if(ms.x < xlo) ms.x = ms.x + xbox;
+			    if(ms.y < ylo) ms.y = ms.y + ybox;
+			    if(ms.x > xhi) ms.x = ms.x - xbox;
+			    if(ms.y > yhi) ms.y = ms.y - ybox;
+			    trialMonos(whichPoly).chain(i) = ms;
+
+			    en = calcAddOneEn(ms, i, brush);
+			    myexp = beta*en;
+			    if (en > 1000)
+				rose = 0;
+			    else
+				rose = exp(myexp);
+				
+			    store.x = en;
+			    store.y = rose;
+			    trialRose(whichPoly).chain(i) = store;
+			}
+
+		    }
+		}
+	    }
+	}
+    }
+
+}
+*/
+
+//double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush) {
+double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush, genarray<twoInt> &cellList, genarray<Mono> &offsets) {
+// Calculate pair energies and angle of adding trialMono to polymer whichPoly. 
+// New - use step potential - e = epsilon at overlap.
+// whichPoly is deprecated...get rid of it later!
+
+    double e = 0;
+    int startMono;
+    int ic, jc, nMono1, nMono2;
+    double dx, dy, dz, drsq, dr;
+    double e_one;
+
+    if (trialMono.z < zlo) {
+	e = 10000000;
+//	cout << "m2.z less than zlo" << endl;
+    }
+    
+    else {
+    // Loop over the cells of trialMono;
+	int x1ind, y1ind, z1ind, x2ind, y2ind, z2ind, cell1ind, cell2ind;
+	int nextp, nextm, cell2p, cell2m;
+	Mono dbg;
+
+
+	cell1ind = getCellIndex(trialMono, x1ind, y1ind, z1ind);
+//	cout << "trialMono: " << trialMono.x << " " << trialMono.y << " " << trialMono.z << endl;
+//	cout << "ncellx, ncelly, ncellz: " << ncellx << " " << ncelly << " " << ncellz << endl;
+//	cout << "\tx1 indices: " << " " << x1ind << " " << y1ind << " " << z1ind << " " << cell1ind << endl;
+	for (int i = 0; i < nOffset; i++) {
+	    x2ind = x1ind + int(offsets(i).x);
+	    y2ind = y1ind + int(offsets(i).y);
+	    z2ind = z1ind + int(offsets(i).z);
+//	    cout << "\noffset " << i << endl;
+//	    cout << "\t2ind before: " << x2ind << " " << y2ind << " " << z2ind << endl;
+//	    cout << "\toffsets xyz: " << offsets(i).x << " " << offsets(i).y << " " << offsets(i).z << endl;
+	    if (x2ind > (ncellx-1)) x2ind = 0;
+	    if (y2ind > (ncelly-1)) y2ind = 0;
+	    if (x2ind < 0) x2ind = ncellx - 1;
+	    if (y2ind < 0) y2ind = ncelly - 1;
+//	    cout << "\t2ind after: " << x2ind << " " << y2ind << " " << z2ind << endl;
+	    if (z2ind >= 0 && z2ind < ncellz) {
+		cell2ind = z2ind*ncelly + y2ind*ncellx + x2ind;
+    //	    if (whichPoly == 1) {
+    //	    }
+		cell2p = cellList(cell2ind).nextp;
+		cell2m = cellList(cell2ind).nextm;
+		nextp = cell2p;
+		nextm = cell2m;
+    //	    if (whichPoly == 1) {
+//		cout << "\tfirst atom: " << cell2p << " " << cell2m << endl;
+    //	    }
+
+		while(nextp >= 0) {
+		    cell2p = nextp;
+		    cell2m = nextm;
+		    dbg = brush(cell2p).chain(cell2m);
+		    drsq = monoDistSq(trialMono, dbg);
+//		    cout << "\t\tpoly, mono, xyz: " << cell2p << " " << cell2m << " " << dbg.x << " " << dbg.y << " " << dbg.z << endl;
+		    if (drsq < sigma_sq) {
+			e += epsilon;
+		    }
+
+		    nextp = brush(cell2p).chain(cell2m).nextp;
+		    nextm = brush(cell2p).chain(cell2m).nextm;
+    //		if (whichPoly == 1) {
+//		    cout << "\t\t\tnext: " << nextp << " " << nextm << endl;
+    //		}
+		}
+	    }
+	}
+    }
+
+    return e;
+}
+
+
