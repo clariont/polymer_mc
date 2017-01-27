@@ -1,0 +1,8 @@
+thomsonFile 22.xyz
+ntrial 22
+iterations 1
+totalmono 2000
+mySeed 10
+TEMP 1
+box_len 20.0
+lattice_size 1.0

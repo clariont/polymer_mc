@@ -1,0 +1,43 @@
+units		lj
+atom_style		full
+boundary		p p f
+read_data brush.dat
+#read_restart		 old_config1.dat
+
+variable sigma		equal 1.0
+variable ljCut		equal ${sigma}*1.12246204831
+
+
+
+neighbor		 0.3 bin 
+
+bond_style	    harmonic
+bond_coeff	    1 200 ${sigma}
+
+pair_style	    lj/cut ${ljCut}
+pair_coeff	    * * 10.0 ${sigma} ${ljCut}
+special_bonds lj 0.0 1.0 1.0
+pair_modify shift yes
+
+group			heads type 1
+group			tails type 2
+#group			moving type 2 3 4 5
+#group			protein type 3 4 5
+velocity		all create 1.0 482748
+
+
+log mylog.lammps
+restart 10000 poly1.dat poly2.dat
+dump 1 all atom 100 poly.lammpstrj
+dump_modify 1 sort id
+
+fix 1 heads setforce 0 0 0
+
+
+fix 5 tails nve
+fix 6 tails langevin 1.0 1.0 0.1 1 zero yes
+thermo 2000
+timestep 0.00000002
+run 2000000
+
+

@@ -74,9 +74,10 @@ int writeGrowth = 1000;
 
 // Rosenbluth params:
 int nTrial = 10;
+int maxMono = 200;
 
 // Cell Lists:
-double cellSize = 2.0;
+double cellSize = 5.0;
 double cellSizeInv = 1/cellSize;
 int ncellx, ncelly, ncellz, ncells;
 int nOffset = 14;
@@ -133,6 +134,8 @@ int getCellIndex (Mono &m, int &xind, int &yind, int &zind);
 
 double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush, genarray<twoInt> &cellList, genarray<Mono> &offsets);
 
+void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cellList);
+
 // Main
 
 int main(int argv, char *argc[]) {
@@ -150,7 +153,7 @@ int main(int argv, char *argc[]) {
     gsl_rng_set(mrRand, mySeed);
 
     ofstream myOut;
-    myOut.open("brush.xyz", ios::out);
+    myOut.open("brush_all.lammpstrj", ios::out);
     myOut.close();
     myOut.open("brush.lammpstrj", ios::out);
     myOut.close();
@@ -232,10 +235,12 @@ int main(int argv, char *argc[]) {
 	    cout << "finished brush: " << j << endl;
 	}
 
-	writeBrush ("brush.xyz", brush);
+	writeBrush ("brush_all.lammpstrj", brush);
 	writeLammps ("brush.lammpstrj", brush);
 	outer << j << "\t" << rose_w << "\n";
 	rose_w = 1;
+
+	writeInFile("brush.dat", brush, cellList);
 
 	// Analyze:
 //	calcPolarAngle(brush, polarAngles);
@@ -341,7 +346,7 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
 	genarray<twoInt> &cellList, genarray<Mono> &offsets ) { 
 
 //    int maxMono = 50000;
-    int maxMono = 1000;
+    int maxMono = 100;
 
     // Init cellList:
     ncellx = xbox/cellSize;
@@ -802,14 +807,6 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 	    if (cumw > ws) {
 		is = i;
 		js = j;
-//		if (js > 10) {
-//		    cout << "js, nTrial, len: " << js << " " << nTrial << " " << brush(i).chain.length() << endl;
-//
-//		}
-//		if (is > 1211) {
-//		    cout << "is, trialRose.len: " << is << " " << trialRose.length() << endl;
-//
-//		}
 		i = trialRose.length()+1;
 		j = nTrial+1;
 	    }
@@ -824,9 +821,9 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 //    cout << "is: " << is << endl;
 //    cout << "is, js, end: " << is << " " << js << " " << end << endl;
     int end = brush(is).nMono;
-    if (end >= 1000) {
+    if (end >= maxMono) {
 	genarray<Mono> temp = brush(is).chain;
-	temp.resize(10000);
+	temp.resize(end+maxMono);
 	brush(is).chain = temp;
     }
 
@@ -871,34 +868,46 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 
 void writeBrush (string outName, genarray< Poly > &brush) {
 
-    int nxyz = 2*(ngraft+totalMono);
+//    int nxyz = 2*(ngraft+totalMono);
+//    ofstream myOut;
+//    myOut.open(outName.c_str(), ios::app);
+//    myOut << nxyz << "\n\n";
+//    Mono m;
+//    int ctr = 0;
+//    for (int i = 0; i < brush.length(); i++) {
+//	for (int j = 0; j < brush(i).nMono; j++) {
+//	    m = brush(i).chain(j);
+//	    myOut << "O " << m.x << " " << m.y << " " << m.z << "\n";
+//	    myOut << "N 0 0 0 \n";
+//	    ctr++;
+//	}
+//    }
+//    int dummies = (ngraft+totalMono) - ctr;
+//    for (int i = 0; i < dummies; i++) {
+//	myOut << "O 0 0 -2 \n";
+//	myOut << "N 0 0 -2 \n";
+//    }
+
+    Mono m;
+    double xinv = 1/xbox;
+    double yinv = 1/ybox;
+    double zinv = 1/zbox;
     ofstream myOut;
     myOut.open(outName.c_str(), ios::app);
-    myOut << nxyz << "\n\n";
-    Mono m;
-    int ctr = 0;
+    myOut << "ITEM: TIMESTEP\n" << "0" << "\nITEM: NUMBER OF ATOMS\n";
+    myOut << (ngraft+totalMono) << "\n" << "ITEM: BOX BOUNDS pp pp pp\n";
+    myOut << xlo << " " << xhi << "\n" << ylo << " " << yhi << "\n" << zlo << " " << zhi << "\n";
+    myOut << "ITEM: ATOMS id type xs ys zs\n";
+    int ctr = 1;
     for (int i = 0; i < brush.length(); i++) {
 	for (int j = 0; j < brush(i).nMono; j++) {
 	    m = brush(i).chain(j);
-	    myOut << "O " << m.x << " " << m.y << " " << m.z << "\n";
-	    myOut << "N 0 0 0 \n";
+	    myOut << ctr << " 1 " << (m.x-xlo)*xinv << " " << (m.y-ylo)*yinv << " " << (m.z-zlo)*zinv << "\n";
 	    ctr++;
 	}
     }
-    int dummies = (ngraft+totalMono) - ctr;
-    for (int i = 0; i < dummies; i++) {
-	myOut << "O 0 0 -2 \n";
-	myOut << "N 0 0 -2 \n";
-    }
-//    myOut << "\n";
-//    myOut << "ITEM: TIMESTEP\n" << "0" << "\nITEM: NUMBER OF ATOMS\n";
-//    myOut << natoms << "\n" << "ITEM: BOX BOUNDS pp pp pp\n";
-//    myOut << -boxrad << " " << boxrad << "\n" << -boxrad << " " << boxrad << "\n" << -boxrad << " " << boxrad << "\n";
-//    myOut << "ITEM: ATOMS id type xs ys zs q\n";
-//    for (int i = 0; i < natoms; i++) {
-//	myOut << i+1 << " 1 " << (atomPositions(i*3)+boxrad)*length_inv << " " << (atomPositions(i*3+1)+boxrad)*length_inv;
-//	myOut << " 0 " << atomPositions(i*3+2) << "\n";	    // z-coordinate and angle
-//    }
+    myOut << "\n";
+    myOut.close();
 
 
 }
@@ -1404,5 +1413,229 @@ double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush
 
     return e;
 }
+
+
+//void genTrialPts3(genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
+//	genarray< Poly > &trialThomson, genarray< Poly > &trialRose,
+//	genarray<twoInt> &cellList, genarray<Mono> &offsets) { 
+//// Use cellList to search around previousPoly (instead of doing distance search for every grafting point).  Search only the neighboring boxes for polymer tails that are 2*r_cut or closer.
+//
+//    double beta = -1/TEMP;
+//    double r_cutsq = r_cut*r_cut;
+//    double dx, dy, dz, mag;
+//    Mono m2, mt, store;
+//    double en, rose, myexp;
+//
+//    store.x = 0;
+//    store.y = 0;
+////    m2 = brush(whichPoly).chain(nMono-1);	// trialPoly's tail monomer.
+//
+//    // Check if distance between the trialPoly's tail and previousPoly tail monomers is close enough to warrant a new trial addition:
+//    double drsq = 0;
+//    if (previousPoly > -1) {
+////	Mono mprev = brush(previousPoly).chain(brush(previousPoly).nMono-1);
+////	drsq = monoDistSq(m2, mprev);
+//
+//	dx = brush(whichPoly).chain(nMono-1).x - brush(previousPoly).chain(brush(previousPoly).nMono-1).x;
+//	dy = brush(whichPoly).chain(nMono-1).y - brush(previousPoly).chain(brush(previousPoly).nMono-1).y;
+//	dz = brush(whichPoly).chain(nMono-1).z - brush(previousPoly).chain(brush(previousPoly).nMono-1).z;
+//	if (dx > xhalf)
+//	    dx -= xbox;
+//	if (dx < -xhalf)
+//	    dx += xbox;
+//	if (dy > yhalf)
+//	    dy -= ybox;
+//	if (dy < -yhalf)
+//	    dy += ybox;
+//	drsq = dx*dx + dy*dy + dz*dz;
+//    }
+//    else {
+//	drsq = 0;
+//    }
+//    double xo, yo, zo;
+//    int trialnMono;
+//    if ( drsq < r_cutsq ) {
+//	dbgctr++;
+////	cout << "\t\t" << whichPoly << endl;
+//	// Use Thomson pts to generate trial pts around the tail monomer:
+//	int rand = gsl_rng_uniform_int (mrRand, trialThomson.length());
+//	Poly trialSphere = trialThomson(rand);
+//	Mono ms;
+//	trialnMono = trialThomson(rand).nMono;
+//	for (int i = 0; i < trialSphere.nMono; i++) {
+////	    cout << "\t\t\t" << i << endl;
+////	for (int i = 0; i < trialnMono; i++) {
+//	    // start old stuff
+//	    ms = trialSphere.chain(i);
+////	    ms.x = ms.x + m2.x;
+////	    ms.y = ms.y + m2.y;
+////	    ms.z = ms.z + m2.z;
+//	    ms.x = ms.x + brush(whichPoly).chain(nMono-1).x;
+//	    ms.y = ms.y + brush(whichPoly).chain(nMono-1).y;
+//	    ms.z = ms.z + brush(whichPoly).chain(nMono-1).z;
+//
+//	    if(ms.x < xlo) ms.x = ms.x + xbox;
+//	    if(ms.y < ylo) ms.y = ms.y + ybox;
+//	    if(ms.x > xhi) ms.x = ms.x - xbox;
+//	    if(ms.y > yhi) ms.y = ms.y - ybox;
+//	    trialMonos(whichPoly).chain(i) = ms;
+//	    // end old stuff
+//
+//
+////	    en = calcAddOneEn(ms, i, brush);
+//	    en = calcAddOneEn_cell(ms, whichPoly, brush, cellList, offsets);
+////	    en = calcAddOneEn(trialMonos(whichPoly).chain(i), i, brush);
+////	    if (isnan(en)) {
+////		cout << " BAD ENERGY! trialmono: " << dbg.x << " " << dbg.y << " " << dbg.z << endl;
+////	    }
+//	    myexp = beta*en;
+//	    if (en > 1000)
+//		rose = 0;
+//	    else
+//		rose = exp(myexp);
+//		
+//	    store.x = en;
+//	    store.y = rose;
+//	    trialRose(whichPoly).chain(i) = store;
+//	}
+//    }
+//
+//
+//}
+
+void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cellList) {
+
+    int nMonos = 0;
+    int nBonds = 0;
+    for (int i = 0; i < brush.length(); i++) {
+	nMonos += brush(i).nMono;
+	nBonds += brush(i).nMono - 1;
+    }
+    ofstream myOut;
+    myOut.open(outName.c_str(), ios::out);
+    myOut << "LAMMPS Description\n\n";
+    myOut << nMonos << "\t atoms" << endl;
+    myOut << nBonds << "\t bonds" << endl;
+    myOut << "0\tangles\n0\tdihedrals\n0\timpropers\n\n";
+    myOut << "2\tatom types\n1\tbond types\n0\tangle types\n0\tdihedral types\n0\timproper types\n\n";
+    myOut << xlo  << " " << xhi << " xlo xhi\n";
+    myOut << ylo  << " " << yhi << " ylo yhi\n";
+    myOut << zlo  << " " << zhi << " zlo zhi\n";
+    myOut << "\n\nMasses\n\n\t1 1.0\n\t2 1.0\n\n";
+    myOut << "Atoms\n\n";
+
+    // Unwrap polymers:
+    genarray<Mono> imageFlags(1000);
+    for (int i = 0; i < 1000; i++) {
+	imageFlags(i).x = 0;
+	imageFlags(i).y = 0;
+	imageFlags(i).z = 0;
+    }
+
+    genarray<int> storeBonds(nBonds*2);
+    int ctr = 1;
+    int bondctr = 0;
+    double x, y, z, dx, dy, dz, drsq;
+    Mono m, m1, m2;
+
+    for (int i = 0; i < brush.length(); i++) {
+	m1 = brush(i).chain(0);
+	for (int j = 1; j < brush(i).nMono; j++) {
+	    imageFlags(j).x = imageFlags(j-1).x;
+	    imageFlags(j).y = imageFlags(j-1).y;
+	    imageFlags(j).z = imageFlags(j-1).z;
+
+	    m2 = brush(i).chain(j);
+	    dx = m2.x - m1.x;
+	    dy = m2.y - m1.y;
+	    dz = m2.z - m1.z;
+	    drsq = dx*dx + dy*dy +dz*dz;
+	    cout << "\tdr:  " << sqrt(drsq) << endl;
+	    if (dx > xhalf) imageFlags(j).x = imageFlags(j).x-1;
+	    if (dy > yhalf) imageFlags(j).y = imageFlags(j).y-1;
+	    if (dz > zhalf) imageFlags(j).z = imageFlags(j).z-1;
+	    if (dx < -xhalf) imageFlags(j).x = imageFlags(j).x+1;
+	    if (dy < -yhalf) imageFlags(j).y = imageFlags(j).y+1;
+	    if (dz < -zhalf) imageFlags(j).z = imageFlags(j).z+1;
+	    cout << "m2: " << m2.x << " " << m2.y << " " << m2.z << endl;
+	    cout << "m1: " << m1.x << " " << m1.y << " " << m1.z << endl;
+	    cout << "imageFlags: " << imageFlags(j).x << " " << imageFlags(j).y << " " << imageFlags(j).z << endl;
+	    cout << "\n";
+	    m1 = m2;
+	}
+
+	for (int j = 0; j < brush(i).nMono; j++) {
+	    if (ctr > 1273  && ctr < 1280) {
+		cout << "ctr,i, j, bad monos: " << ctr << ", " << i << " " << j << ", " << m.x << " " << m.y << " " << m.z << endl;
+
+	    }	
+	    m = brush(i).chain(j);
+	    x = m.x + imageFlags(j).x*xbox;
+	    y = m.y + imageFlags(j).y*ybox;
+	    z = m.z + imageFlags(j).z*zbox;
+	    if (j == 0) {
+		myOut << ctr << " " << ctr << " 1 0 " << x << " " << y << " " << z << endl;
+	    }
+	    else {
+		myOut << ctr << " " << ctr << " 2 0 " << x << " " << y << " " << z << endl;
+	    }
+	    if (j < (brush(i).nMono-1)) {
+		storeBonds(bondctr*2 + 0) = ctr;
+		storeBonds(bondctr*2 + 1) = ctr+1;
+		bondctr++;
+	    }
+
+	    ctr++;
+
+	}
+    }
+    
+    myOut << "\nBonds\n\n";
+//    cout << "finished!" << endl;
+    ctr = 1;
+    for (int i = 0; i < nBonds; i++) {
+	myOut << (i+1) << " 1 " << storeBonds(i*2) << " " << storeBonds(i*2+1) << endl;
+    }
+//    for (int i = 0; i < brush.length(); i++) {
+//	for (int j = 0; j < brush(i).nMono-1; j++) {
+//	    m = brush(i).chain(j);
+//	    myOut << ctr << " 1 " << (j+1) << " " << (j+2) << endl;
+//
+//	    ctr++;
+//	}
+//    }
+    myOut.close();
+
+
+    cout << "check cellList: "<< endl;
+    int nextp, nextm, cellp, cellm;
+    Mono meme;
+    int checker = 0;
+    for (int i = 0; i < cellList.length(); i++) {
+	if (cellList(i).nextp >= 0) {
+	    cout << "cell: "<< i << endl;
+	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
+	    nextp = cellList(i).nextp; 
+	    nextm = cellList(i).nextm; 
+	    while (nextp >= 0) {
+		cellp = nextp;
+		cellm = nextm;
+		meme = brush(cellp).chain(cellm);
+		cout << "\tp, m: " << cellp << " " << cellm << endl;
+		nextp = meme.nextp;
+		nextm = meme.nextm;
+		checker++;
+
+	    }
+	}
+
+    }
+
+}
+
+
+
+
+
 
 
