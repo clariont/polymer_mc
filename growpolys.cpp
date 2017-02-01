@@ -77,10 +77,10 @@ int nTrial = 10;
 int maxMono = 200;
 
 // Cell Lists:
-double cellSize = 5.0;
+double cellSize = 4.0;
 double cellSizeInv = 1/cellSize;
 int ncellx, ncelly, ncellz, ncells;
-int nOffset = 14;
+int nOffset = 28;
 
 
 
@@ -160,14 +160,6 @@ int main(int argv, char *argc[]) {
 
     genarray< Poly > trialThomson;
     readThomson(thomsonFile, trialThomson);
-    Poly d;
-    for (int i = 0; i < trialThomson.length(); i++) {
-	cout << "sphere " << i << endl;
-	d = trialThomson(i);
-	for (int j = 0; j < d.nMono; j++) {
-	    cout << "\t" << d.chain(j).x << " " << d.chain(j).y << " " << d.chain(j).z << endl;
-	}
-    }
 
     // Dynamic Arrays:
     genarray<twoInt> cellList;
@@ -346,7 +338,7 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
 	genarray<twoInt> &cellList, genarray<Mono> &offsets ) { 
 
 //    int maxMono = 50000;
-    int maxMono = 100;
+//    int maxMono = 100;
 
     // Init cellList:
     ncellx = xbox/cellSize;
@@ -361,19 +353,50 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
     
     offsets.resize(nOffset);
     offsets(0).x = 0; offsets(0).y = 0; offsets(0).z = 0;
+
     offsets(1).x = 1; offsets(1).y = 0; offsets(1).z = 0;
     offsets(2).x = 1; offsets(2).y = 1; offsets(2).z = 0;
-    offsets(3).x = 0; offsets(3).y = 1; offsets(3).z = 0;
-    offsets(4).x = -1; offsets(4).y = 1; offsets(4).z = 0;
-    offsets(5).x = 0; offsets(5).y = 0; offsets(5).z = 1;
-    offsets(6).x = 1; offsets(6).y = 0; offsets(6).z = 1;
-    offsets(7).x = 1; offsets(7).y = 1; offsets(7).z = 1;
-    offsets(8).x = 0; offsets(8).y = 1; offsets(8).z = 1;
-    offsets(9).x = -1; offsets(9).y = 1; offsets(9).z = 1;
-    offsets(10).x = -1; offsets(10).y = 0; offsets(10).z = 1;
-    offsets(11).x = -1; offsets(11).y = -1; offsets(11).z = 1;
-    offsets(12).x = 0; offsets(12).y = -1; offsets(12).z = 1;
-    offsets(13).x = 1; offsets(13).y = -1; offsets(13).z = 1;
+    offsets(3).x = 1; offsets(3).y = -1; offsets(3).z = 0;
+    offsets(4).x = 1; offsets(4).y = 0; offsets(4).z = 1;
+    offsets(5).x = 1; offsets(5).y = 0; offsets(5).z = -1;
+    offsets(6).x = 1; offsets(6).y = 1; offsets(6).z = 1;
+    offsets(7).x = 1; offsets(7).y = 1; offsets(7).z = -1;
+    offsets(8).x = 1; offsets(8).y = -1; offsets(8).z = 1;
+    offsets(9).x = 1; offsets(9).y = -1; offsets(9).z = -1;
+
+    offsets(10).x = -1; offsets(10).y = -1; offsets(10).z = -1;
+    offsets(11).x = -1; offsets(11).y = 0; offsets(11).z = 0;
+    offsets(12).x = -1; offsets(12).y = 1; offsets(12).z = 0;
+    offsets(13).x = -1; offsets(13).y = -1; offsets(13).z = 0;
+    offsets(14).x = -1; offsets(14).y = 0; offsets(14).z = 1;
+    offsets(15).x = -1; offsets(15).y = 0; offsets(15).z = -1;
+    offsets(16).x = -1; offsets(16).y = 1; offsets(16).z = 1;
+    offsets(17).x = -1; offsets(17).y = 1; offsets(17).z = -1;
+    offsets(18).x = -1; offsets(18).y = -1; offsets(18).z = 1;
+
+    offsets(20).x = 0; offsets(20).y = -1; offsets(20).z = -1;
+    offsets(21).x = 0; offsets(21).y = 1; offsets(21).z = 0;
+    offsets(22).x = 0; offsets(22).y = -1; offsets(22).z = 0;
+    offsets(23).x = 0; offsets(23).y = 0; offsets(23).z = 1;
+    offsets(24).x = 0; offsets(24).y = 0; offsets(24).z = -1;
+    offsets(25).x = 0; offsets(25).y = 1; offsets(25).z = 1;
+    offsets(26).x = 0; offsets(26).y = 1; offsets(26).z = -1;
+    offsets(27).x = 0; offsets(25).y = -1; offsets(25).z = 1;
+
+
+//    offsets(1).x = 1; offsets(1).y = 0; offsets(1).z = 0;
+//    offsets(2).x = 1; offsets(2).y = 1; offsets(2).z = 0;
+//    offsets(3).x = 0; offsets(3).y = 1; offsets(3).z = 0;
+//    offsets(4).x = -1; offsets(4).y = 1; offsets(4).z = 0;
+//    offsets(5).x = 0; offsets(5).y = 0; offsets(5).z = 1;
+//    offsets(6).x = 1; offsets(6).y = 0; offsets(6).z = 1;
+//    offsets(7).x = 1; offsets(7).y = 1; offsets(7).z = 1;
+//    offsets(8).x = 0; offsets(8).y = 1; offsets(8).z = 1;
+//    offsets(9).x = -1; offsets(9).y = 1; offsets(9).z = 1;
+//    offsets(10).x = -1; offsets(10).y = 0; offsets(10).z = 1;
+//    offsets(11).x = -1; offsets(11).y = -1; offsets(11).z = 1;
+//    offsets(12).x = 0; offsets(12).y = -1; offsets(12).z = 1;
+//    offsets(13).x = 1; offsets(13).y = -1; offsets(13).z = 1;
 
 
     // Init monomer
@@ -482,6 +505,11 @@ double calcEnergy(genarray< Poly > &brush) {
     double e_one;
     Mono m1, m2, m3;
 
+    int i1, i2, i3, ii;
+    i1 = -1;
+    i2 = -1;
+    i3 = -1;
+
     // Outer loop - monomer 1
     for (int i = 0; i < brush.length(); i++) {
 	nMono1 = brush(i).nMono;
@@ -494,7 +522,7 @@ double calcEnergy(genarray< Poly > &brush) {
 		    startMono = j + 1;
 		else
 		    startMono = 0;
-		nMono2 = brush(k).chain.length();
+		nMono2 = brush(k).nMono;
 		for (int l = startMono; l < nMono2; l++) {
 		    m2 = brush(k).chain(l);
 
@@ -502,12 +530,32 @@ double calcEnergy(genarray< Poly > &brush) {
 		    dx = m1.x - m2.x;
 		    dy = m1.y - m2.y;
 		    dz = m1.z - m2.z;
+		    if (dx > xhalf) dx -= xbox;
+		    if (dy > yhalf) dy -= ybox;
+		    if (dx < -xhalf) dx += xbox;
+		    if (dy < -yhalf) dy += ybox;
 		    drsq = dx*dx+dy*dy+dz*dz;
-		    if (drsq < r_cutsq){
-			dr = sqrt(dr);
-			e_one = (1-dr/sigma);
-			e_one = e_one*e_one;
-			e += epsilon*e_one;
+//		    if (drsq < r_cutsq){
+		    if (drsq < 0.999999) {
+			cout << "bad pair! " << i << ", " << j << " and " << k << ", " << l << endl;
+			cout << "\tm1: " << m1.x << " " << m1.y << " " << m1.z << endl;
+			cout << "\tm2: " << m2.x << " " << m2.y << " " << m2.z << endl;
+			ii = getCellIndex(m1, i1, i2, i3);
+			cout << "\tcellIndex1: " << ii << " " << i1 << " " << i2 << " " << i3 << endl;
+			cout << "\tcellIndex1: " << getCellIndex(m1, i1, i2, i3) << " " << i1 << " " << i2 << " " << i3 << endl;
+			cout << "\tdbg x: " << (floor(m1.x - xlo)*cellSizeInv) << endl; 
+			cout << "\tdbg y: " << (floor(m1.y - ylo)*cellSizeInv) << endl; 
+			cout << "\tdbg z: " << (floor(m1.z - zlo)*cellSizeInv) << endl; 
+			cout << "\tcellIndex2: " << getCellIndex(m2, i1, i2, i3) << " " << i1 << " " << i2 << " " << i3 << endl;
+			cout << "\tcellIndex2: " << getCellIndex(m2, i1, i2, i3) << " " << i1 << " " << i2 << " " << i3 << endl;
+			cout << "\tdbg x: " << (floor(m2.x - xlo)*cellSizeInv) << endl; 
+			cout << "\tdbg y: " << (floor(m2.y - ylo)*cellSizeInv) << endl; 
+			cout << "\tdbg z: " << (floor(m2.z - zlo)*cellSizeInv) << endl; 
+			cout << "\t" << drsq << endl;
+//			dr = sqrt(dr);
+//			e_one = (1-dr/sigma);
+//			e_one = e_one*e_one;
+//			e += epsilon*e_one;
 		    }
 
 		}
@@ -515,40 +563,40 @@ double calcEnergy(genarray< Poly > &brush) {
 	}
     }
 
-    // Angles:
-    double dx1, dy1, dz1, dx2, dy2, dz2, rsq1, rsq2, r1, r2;
-    double c, s, dtheta;
-    int jc1, jc2, jc3;
-
-    for (int i = 0; i < brush.length(); i++) {
-	nMono1 = brush(i).nMono;
-	for (int j = 0; j < (nMono1-2); j++) {
-	    m1 = brush(i).chain(j);
-	    m2 = brush(i).chain(j+1);
-	    m3 = brush(i).chain(j+2);
-
-	    dx1 = m1.x - m2.x;
-	    dy1 = m1.y - m2.y;
-	    dz1 = m1.z - m2.z;
-	    rsq1 = dx1*dx1 + dy1*dy1 + dz1*dz1;
-	    r1 = sqrt(r1);
-
-	    dx2 = m2.x - m3.x;
-	    dy2 = m2.y - m3.y;
-	    dz2 = m2.z - m3.z;
-	    rsq2 = dx2*dx2 + dy2*dy2 + dz2*dz2;
-	    r2 = sqrt(r2);
-
-	    c = dx1*dx2 + dy1*dy2 + dz1*dz2;
-	    c /= r1*r2;
-	    if (c > 1.0) c = 1.0;
-	    if (c < -1.0) c = -1.0;
-	    dtheta = acos(c) - theta_0;
-	    e += k_angle * dtheta*dtheta;
-	    
-	}
-    }
-
+//    // Angles:
+//    double dx1, dy1, dz1, dx2, dy2, dz2, rsq1, rsq2, r1, r2;
+//    double c, s, dtheta;
+//    int jc1, jc2, jc3;
+//
+//    for (int i = 0; i < brush.length(); i++) {
+//	nMono1 = brush(i).nMono;
+//	for (int j = 0; j < (nMono1-2); j++) {
+//	    m1 = brush(i).chain(j);
+//	    m2 = brush(i).chain(j+1);
+//	    m3 = brush(i).chain(j+2);
+//
+//	    dx1 = m1.x - m2.x;
+//	    dy1 = m1.y - m2.y;
+//	    dz1 = m1.z - m2.z;
+//	    rsq1 = dx1*dx1 + dy1*dy1 + dz1*dz1;
+//	    r1 = sqrt(r1);
+//
+//	    dx2 = m2.x - m3.x;
+//	    dy2 = m2.y - m3.y;
+//	    dz2 = m2.z - m3.z;
+//	    rsq2 = dx2*dx2 + dy2*dy2 + dz2*dz2;
+//	    r2 = sqrt(r2);
+//
+//	    c = dx1*dx2 + dy1*dy2 + dz1*dz2;
+//	    c /= r1*r2;
+//	    if (c > 1.0) c = 1.0;
+//	    if (c < -1.0) c = -1.0;
+//	    dtheta = acos(c) - theta_0;
+//	    e += k_angle * dtheta*dtheta;
+//	    
+//	}
+//    }
+//
     return e;
 }
 
@@ -861,6 +909,14 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
     cout << "\tadding mono: " << myMono.x << " " << myMono.y << " " << myMono.z << ", " << mag2 << endl;
     }
 //    cout << "\n";
+//    double trash = calcEnergy(brush);
+//    cout << "adding to: " << is << ", " << end << endl;
+//    if (is == 220 && end == 1) {
+//	cout << trialRose(is).chain(js).x << " " << trialRose(is).chain(js).y << endl;
+//    }
+//    if (is == 201 && end == 1) {
+//	cout << trialRose(is).chain(js).x << " " << trialRose(is).chain(js).y << endl;
+//    }
 
     return w_move;
 }
@@ -1242,9 +1298,16 @@ void writeLengths (string outName, genarray< Poly > &brush, int growthStep) {
 }
 
 int getCellIndex (Mono &m, int &xind, int &yind, int &zind) {
-    xind = (floor(m.x - xlo)*cellSizeInv);
-    yind = (floor(m.y - ylo)*cellSizeInv);
-    zind = (floor(m.z - zlo)*cellSizeInv);
+//    xind = (floor(m.x - xlo)*cellSizeInv);
+//    yind = (floor(m.y - ylo)*cellSizeInv);
+//    zind = (floor(m.z - zlo)*cellSizeInv);
+    int x,y,z;
+    x = floor((m.x - xlo)*cellSizeInv);
+    y = floor((m.y - ylo)*cellSizeInv);
+    z = floor((m.z - zlo)*cellSizeInv);
+    xind = x;
+    yind = y;
+    zind = z;
 
     return zind*ncelly + yind*ncellx + xind;
 //    return xind*ncellx + yind*ncelly + zind;
@@ -1550,25 +1613,21 @@ void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cel
 	    dy = m2.y - m1.y;
 	    dz = m2.z - m1.z;
 	    drsq = dx*dx + dy*dy +dz*dz;
-	    cout << "\tdr:  " << sqrt(drsq) << endl;
+//	    cout << "\tdr:  " << sqrt(drsq) << endl;
 	    if (dx > xhalf) imageFlags(j).x = imageFlags(j).x-1;
 	    if (dy > yhalf) imageFlags(j).y = imageFlags(j).y-1;
 	    if (dz > zhalf) imageFlags(j).z = imageFlags(j).z-1;
 	    if (dx < -xhalf) imageFlags(j).x = imageFlags(j).x+1;
 	    if (dy < -yhalf) imageFlags(j).y = imageFlags(j).y+1;
 	    if (dz < -zhalf) imageFlags(j).z = imageFlags(j).z+1;
-	    cout << "m2: " << m2.x << " " << m2.y << " " << m2.z << endl;
-	    cout << "m1: " << m1.x << " " << m1.y << " " << m1.z << endl;
-	    cout << "imageFlags: " << imageFlags(j).x << " " << imageFlags(j).y << " " << imageFlags(j).z << endl;
-	    cout << "\n";
+//	    cout << "m2: " << m2.x << " " << m2.y << " " << m2.z << endl;
+//	    cout << "m1: " << m1.x << " " << m1.y << " " << m1.z << endl;
+//	    cout << "imageFlags: " << imageFlags(j).x << " " << imageFlags(j).y << " " << imageFlags(j).z << endl;
+//	    cout << "\n";
 	    m1 = m2;
 	}
 
 	for (int j = 0; j < brush(i).nMono; j++) {
-	    if (ctr > 1273  && ctr < 1280) {
-		cout << "ctr,i, j, bad monos: " << ctr << ", " << i << " " << j << ", " << m.x << " " << m.y << " " << m.z << endl;
-
-	    }	
 	    m = brush(i).chain(j);
 	    x = m.x + imageFlags(j).x*xbox;
 	    y = m.y + imageFlags(j).y*ybox;
@@ -1607,21 +1666,21 @@ void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cel
     myOut.close();
 
 
-    cout << "check cellList: "<< endl;
+//    cout << "check cellList: "<< endl;
     int nextp, nextm, cellp, cellm;
     Mono meme;
     int checker = 0;
     for (int i = 0; i < cellList.length(); i++) {
 	if (cellList(i).nextp >= 0) {
-	    cout << "cell: "<< i << endl;
-	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
+//	    cout << "cell: "<< i << endl;
+//	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
 	    nextp = cellList(i).nextp; 
 	    nextm = cellList(i).nextm; 
 	    while (nextp >= 0) {
 		cellp = nextp;
 		cellm = nextm;
 		meme = brush(cellp).chain(cellm);
-		cout << "\tp, m: " << cellp << " " << cellm << endl;
+//		cout << "\tp, m: " << cellp << " " << cellm << endl;
 		nextp = meme.nextp;
 		nextm = meme.nextm;
 		checker++;
