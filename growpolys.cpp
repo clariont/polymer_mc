@@ -8,6 +8,12 @@
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+Notes: way 1: have c++ program call LAMMPS/MD step internally, write back a read-in function.
+       way 2: have a higher-level Python script run both c++ program and LAMMPS. cleaner, but slow if a lot of file i/o.
+
+
+*/
 
 
 #include <iostream>
@@ -54,6 +60,7 @@ double xlo, xhi, ylo, yhi, zlo, zhi;
 double xhalf, yhalf, zhalf, xbox, ybox, zbox;
 int ngraft;
 int totalMono;
+int nsweeps;
 //string spheroidFile;
 string thomsonFile;
 double r_cut = 2.1;
@@ -70,17 +77,17 @@ double elp_c = 3.0;
 double iterations = 1;
 double lattice_size = 1.0;
 double box_len = 10;
-int writeGrowth = 1000;
+int writeGrowth = 10;
 
 // Rosenbluth params:
 int nTrial = 10;
 int maxMono = 200;
 
 // Cell Lists:
-double cellSize = 4.0;
+double cellSize = 2.0;
 double cellSizeInv = 1/cellSize;
 int ncellx, ncelly, ncellz, ncells;
-int nOffset = 28;
+int nOffset = 27;
 
 
 
@@ -101,6 +108,8 @@ void calcRosenbluth (genarray< Poly > &brush, genarray < Poly > &trialMonos, gen
 
 double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genarray < Poly > &trialRose, int &previousPoly,
 	genarray<twoInt> &cellList); 
+
+double calcEnergy(genarray< Poly > &brush); 
 
 void writeBrush (string outName, genarray< Poly > &brush); 
 
@@ -193,35 +202,26 @@ int main(int argv, char *argc[]) {
     for (int j = 0; j < iterations; j++)  {
 	dbgctr = 0;
 	previous = -1;
-	for (int i = 0; i < totalMono; i++) {
+	for (int k = 0; k < nsweeps; k++) {
+	    for (int i = 0; i < ngraft; i++) {
 
-	    // generate all trial points
-	    for (int k = 0; k < brush.length(); k++) {
-//    	    cout << "\tgenerating for poly " << j << endl;
-//		genTrialPts2 (j, brush, trialMonos, previous, trialThomson, trialRose);
-		genTrialPts2dbg (k, brush, trialMonos, previous, trialThomson, trialRose, dbgctr, cellList, offsets);
+		// generate all trial points
+		for (int k = 0; k < brush.length(); k++) {
+    //    	    cout << "\tgenerating for poly " << j << endl;
+    //		genTrialPts2 (j, brush, trialMonos, previous, trialThomson, trialRose);
+		    genTrialPts2dbg (k, brush, trialMonos, previous, trialThomson, trialRose, dbgctr, cellList, offsets);
+		}
+
+		// add monomer
+    //	    cout << "adding monomer: " << i << endl;
+		rose_w *= addMonomer (brush, trialMonos, trialRose, previous, cellList);
 	    }
-
-	    // calc rosenbluth
-//	    cout << "\tcalcRosenbluth!" << endl;
-//	    calcRosenbluth (brush, trialMonos, trialRose, previous);
-
-	    // add monomer
-//	    cout << "adding monomer: " << i << endl;
-	    rose_w *= addMonomer (brush, trialMonos, trialRose, previous, cellList);
-
-	    // write:
-	    if (i%1000 == 0) {
-//		cout << "\tfinished addMonomer " << i << "\n";
-//		cout << "\t\tcomputed " << dbgctr << " monomers: " << endl;
-		cout << "addMonomer, computed: " << i << " " << dbgctr << endl;
-		dbgctr = 0;
-	    }
-	    if (i%writeGrowth == 0 && (i > 0)) {
-		writeLengths("all_lens.dat", brush, i);
+	    if (k%10 == 0) cout << "finished sweep " << k << endl;
+	    if (k%writeGrowth == 0 && (k > 0)) {
+		writeLengths("all_lens.dat", brush, k);
 	    }	
-		
 	}
+	double trash = calcEnergy(brush);
 
 	if (j%1 ==0 ) {
 	    cout << "finished brush: " << j << endl;
@@ -266,12 +266,16 @@ void paramReader (string fileName)
     in >> junk1 >> thomsonFile;
     in >> junk1 >> nTrial;
     in >> junk1 >> iterations;
-    in >> junk1 >> totalMono;
+    in >> junk1 >> nsweeps;
 //    in >> junk1 >> writeEvery;
     in >> junk1 >> mySeed;
     in >> junk1 >> TEMP;
     in >> junk1 >> box_len;
+    in >> junk1 >> cellSize;
+    cellSizeInv = 1/cellSize;
     in >> junk1 >> lattice_size;
+//    if (box_len%cellSize != 0) cout << "problem with cell sizes - they don't divide nicely...\n";
+    cout << "warning, box_len%cellSize should be 0, for cell lists to work properly." << endl;
     in.close();
     xhi = 0.5*box_len;
     yhi = 0.5*box_len;
@@ -374,6 +378,7 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
     offsets(17).x = -1; offsets(17).y = 1; offsets(17).z = -1;
     offsets(18).x = -1; offsets(18).y = -1; offsets(18).z = 1;
 
+    offsets(19).x = 0; offsets(19).y = -1; offsets(19).z = 1;
     offsets(20).x = 0; offsets(20).y = -1; offsets(20).z = -1;
     offsets(21).x = 0; offsets(21).y = 1; offsets(21).z = 0;
     offsets(22).x = 0; offsets(22).y = -1; offsets(22).z = 0;
@@ -381,7 +386,6 @@ void initPolys ( genarray<double> &spheroidPos, genarray < Poly > &brush, genarr
     offsets(24).x = 0; offsets(24).y = 0; offsets(24).z = -1;
     offsets(25).x = 0; offsets(25).y = 1; offsets(25).z = 1;
     offsets(26).x = 0; offsets(26).y = 1; offsets(26).z = -1;
-    offsets(27).x = 0; offsets(25).y = -1; offsets(25).z = 1;
 
 
 //    offsets(1).x = 1; offsets(1).y = 0; offsets(1).z = 0;
@@ -537,17 +541,20 @@ double calcEnergy(genarray< Poly > &brush) {
 		    drsq = dx*dx+dy*dy+dz*dz;
 //		    if (drsq < r_cutsq){
 		    if (drsq < 0.999999) {
+			cout << "xlo, ylo: " << xlo << ", " << ylo << endl;
+			cout << "ncellx, ncelly, ncellz: " << ncellx << " " << ncelly << " " << ncellz << endl;
+			cout << "dr: " << sqrt(drsq) << endl;
 			cout << "bad pair! " << i << ", " << j << " and " << k << ", " << l << endl;
 			cout << "\tm1: " << m1.x << " " << m1.y << " " << m1.z << endl;
 			cout << "\tm2: " << m2.x << " " << m2.y << " " << m2.z << endl;
 			ii = getCellIndex(m1, i1, i2, i3);
-			cout << "\tcellIndex1: " << ii << " " << i1 << " " << i2 << " " << i3 << endl;
 			cout << "\tcellIndex1: " << getCellIndex(m1, i1, i2, i3) << " " << i1 << " " << i2 << " " << i3 << endl;
 			cout << "\tdbg x: " << (floor(m1.x - xlo)*cellSizeInv) << endl; 
 			cout << "\tdbg y: " << (floor(m1.y - ylo)*cellSizeInv) << endl; 
 			cout << "\tdbg z: " << (floor(m1.z - zlo)*cellSizeInv) << endl; 
+			ii = getCellIndex(m2, i1, i2, i3);
 			cout << "\tcellIndex2: " << getCellIndex(m2, i1, i2, i3) << " " << i1 << " " << i2 << " " << i3 << endl;
-			cout << "\tcellIndex2: " << getCellIndex(m2, i1, i2, i3) << " " << i1 << " " << i2 << " " << i3 << endl;
+			cout << "\tm2.x - xlo, floor(m2.x - xlo): " << (m2.x - xlo) << " " << floor(m2.x - xlo) << endl;
 			cout << "\tdbg x: " << (floor(m2.x - xlo)*cellSizeInv) << endl; 
 			cout << "\tdbg y: " << (floor(m2.y - ylo)*cellSizeInv) << endl; 
 			cout << "\tdbg z: " << (floor(m2.z - zlo)*cellSizeInv) << endl; 
@@ -1131,6 +1138,8 @@ void makeSquareLattice (genarray <double> &atomPositions) {
 
     int ngraft_sqrt = double(box_len)/lattice_size;
     ngraft = ngraft_sqrt*ngraft_sqrt;
+    totalMono = ngraft*nsweeps;
+    cout << "totalMono: " << totalMono << endl;
     atomPositions.resize(ngraft*3);
     int ic;
     for (int i = 0; i < ngraft_sqrt; i++) {
