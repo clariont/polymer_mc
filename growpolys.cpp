@@ -81,7 +81,7 @@ int writeGrowth = 10;
 
 // Rosenbluth params:
 int nTrial = 10;
-int maxMono = 200;
+int maxMono = 4000;
 
 // Cell Lists:
 double cellSize = 2.0;
@@ -216,7 +216,7 @@ int main(int argv, char *argc[]) {
     //	    cout << "adding monomer: " << i << endl;
 		rose_w *= addMonomer (brush, trialMonos, trialRose, previous, cellList);
 	    }
-	    if (k%10 == 0) cout << "finished sweep " << k << endl;
+	    if (k%1 == 0) cout << "finished sweep " << k << endl;
 	    if (k%writeGrowth == 0 && (k > 0)) {
 		writeLengths("all_lens.dat", brush, k);
 	    }	
@@ -842,7 +842,12 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 	}
     }
 
-//    cout << "w_move is: " << w_move << endl << endl;
+    if (w_move < 1) {
+	cout << "STUCK! can't and anymore monomers." << endl;
+	cout << "w_move is: " << w_move << endl << endl;
+    }
+    // put an if statement in here! 
+    // if (w_move < 1 ) return previousPoly = -1;  ( exit the loop, finished with brush!)
     
     int is = -1;
     int js = -1; 
@@ -867,10 +872,12 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 	    }
 	}
     }
-    if (is < 0 && js < 0) {
-	cout << "stuck!  can't add monomer!" << endl;
-	cout << "w_move is: " << w_move << endl;
-    }
+//    if (trialRose(is).chain(js).x != 0) cout << "BAD! " << endl;
+//    cout << "add en, rose: " << trialRose(is).chain(js).x << ", " << trialRose(is).chain(js).y << endl;
+//    if (is < 0 && js < 0) {
+//	cout << "stuck!  can't add monomer!" << endl;
+//	cout << "w_move is: " << w_move << endl;
+//    }
 
 
 //    cout << "is: " << is << endl;
@@ -878,6 +885,7 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
     int end = brush(is).nMono;
     if (end >= maxMono) {
 	genarray<Mono> temp = brush(is).chain;
+	cout << "RESIZE !!! " << endl;
 	temp.resize(end+maxMono);
 	brush(is).chain = temp;
     }
@@ -1452,9 +1460,8 @@ double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush
 	    if (y2ind < 0) y2ind = ncelly - 1;
 //	    cout << "\t2ind after: " << x2ind << " " << y2ind << " " << z2ind << endl;
 	    if (z2ind >= 0 && z2ind < ncellz) {
+
 		cell2ind = z2ind*ncelly + y2ind*ncellx + x2ind;
-    //	    if (whichPoly == 1) {
-    //	    }
 		cell2p = cellList(cell2ind).nextp;
 		cell2m = cellList(cell2ind).nextm;
 		nextp = cell2p;
