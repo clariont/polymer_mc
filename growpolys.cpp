@@ -205,13 +205,13 @@ int main(int argv, char *argc[]) {
 	for (int k = 0; k < nsweeps; k++) {
 	    previous = -1;
 	    for (int i = 0; i < ngraft; i++) {	    // one sweep
-		cout << "hey" << endl;
+//		cout << "hey" << endl;
 		for (int l = 0; l < brush.length(); l++) {
 		    genTrialPts2dbg (l, brush, trialMonos, previous, trialThomson, trialRose, dbgctr, cellList, offsets);
 		}
 
 		// add monomer
-		cout << "adding mono: " << i << endl;
+//		cout << "adding mono: " << i << endl;
 		rose_w = addMonomer (brush, trialMonos, trialRose, previous, cellList);
 		sweepctr = k;
 		if (rose_w == -1) {
@@ -1229,14 +1229,14 @@ void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > 
     int trialnMono;
     if ( drsq < r_cutsq ) {
 	dbgctr++;
-	cout << "\t\t" << whichPoly << endl;
+//	cout << "\t\t" << whichPoly << endl;
 	// Use Thomson pts to generate trial pts around the tail monomer:
 	int rand = gsl_rng_uniform_int (mrRand, trialThomson.length());
 	Poly trialSphere = trialThomson(rand);
 	Mono ms;
 	trialnMono = trialThomson(rand).nMono;
 	for (int i = 0; i < trialSphere.nMono; i++) {
-	    cout << "\t\t\t" << i << endl;
+//	    cout << "\t\t\t" << i << endl;
 //	for (int i = 0; i < trialnMono; i++) {
 	    // start old stuff
 	    ms = trialSphere.chain(i);
@@ -1271,7 +1271,7 @@ void genTrialPts2dbg( int whichPoly, genarray< Poly > &brush, genarray < Poly > 
 	    store.y = rose;
 	    trialRose(whichPoly).chain(i) = store;
 	}
-	cout << "\t\t\tdone" << endl;
+//	cout << "\t\t\tdone" << endl;
     }
 
 
@@ -1422,16 +1422,16 @@ double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush
 
 
 	cell1ind = getCellIndex(trialMono, x1ind, y1ind, z1ind);
-	cout << "trialMono: " << trialMono.x << " " << trialMono.y << " " << trialMono.z << endl;
-	cout << "ncellx, ncelly, ncellz: " << ncellx << " " << ncelly << " " << ncellz << endl;
-	cout << "\tx1 indices: " << " " << x1ind << " " << y1ind << " " << z1ind << " " << cell1ind << endl;
+//	cout << "trialMono: " << trialMono.x << " " << trialMono.y << " " << trialMono.z << endl;
+//	cout << "ncellx, ncelly, ncellz: " << ncellx << " " << ncelly << " " << ncellz << endl;
+//	cout << "\tx1 indices: " << " " << x1ind << " " << y1ind << " " << z1ind << " " << cell1ind << endl;
 	for (int i = 0; i < nOffset; i++) {
 	    x2ind = x1ind + int(offsets(i).x);
 	    y2ind = y1ind + int(offsets(i).y);
 	    z2ind = z1ind + int(offsets(i).z);
-	    cout << "\noffset " << i << endl;
-	    cout << "\t2ind before: " << x2ind << " " << y2ind << " " << z2ind << endl;
-	    cout << "\toffsets xyz: " << offsets(i).x << " " << offsets(i).y << " " << offsets(i).z << endl;
+//	    cout << "\noffset " << i << endl;
+//	    cout << "\t2ind before: " << x2ind << " " << y2ind << " " << z2ind << endl;
+//	    cout << "\toffsets xyz: " << offsets(i).x << " " << offsets(i).y << " " << offsets(i).z << endl;
 	    if (x2ind > (ncellx-1)) x2ind = 0;
 	    if (y2ind > (ncelly-1)) y2ind = 0;
 	    if (x2ind < 0) x2ind = ncellx - 1;
@@ -1689,7 +1689,10 @@ void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cel
 
 void readLammps (string inName, genarray< Poly > &brush, genarray<twoInt> &cellList) {
 
-    clearBrush(brush, cellList);
+    for (int i = 0; i < ncells; i++) {
+	cellList(i).nextp = -1;	    // -1 means empty cell!
+	cellList(i).nextm = -1;	    // -1 means empty cell!
+    }
     for (int i = 0; i < brush.length(); i++) {
 	brush(i).nMono = 0;
     }
@@ -1705,11 +1708,11 @@ void readLammps (string inName, genarray< Poly > &brush, genarray<twoInt> &cellL
     Mono m1, m2;
     int polyctr = 0;
     int monoctr = 0;
+    int cellIndex, cellm, cellp;
 
     int tx,ty,tz;
 
     int dx, dy, dz;
-    int cellIndex, cellm, cellp;
     while (getline(in, myLine)) {
 	if (myLine != "") {
 	    stringstream ss(myLine);
@@ -1799,6 +1802,9 @@ void readLammps (string inName, genarray< Poly > &brush, genarray<twoInt> &cellL
     int nextp, nextm;
     Mono meme;
     int checker = 0;
+//    int nextp, nextm;
+//    Mono meme;
+//    int checker = 0;
     for (int i = 0; i < cellList.length(); i++) {
 	if (cellList(i).nextp >= 0) {
 	    cout << "cell: "<< i << endl;
