@@ -1,9 +1,9 @@
 thomsonFile 22.xyz
 ntrial 22
 iterations 1
-nsweeps 20
-mySeed 20
+nsweeps 1
+mySeed 10
 TEMP 1
-box_len 50.0
+box_len 20.0
 cellSize 2
 lattice_size 1.0
