@@ -81,7 +81,7 @@ int writeGrowth = 1;
 
 // Rosenbluth params:
 int nTrial = 10;
-int maxMono = 4000;
+int maxMono = 8000;
 
 // Cell Lists:
 double cellSize = 2.0;
@@ -205,7 +205,6 @@ int main(int argv, char *argc[]) {
 	for (int k = 0; k < nsweeps; k++) {
 	    previous = -1;
 	    for (int i = 0; i < ngraft; i++) {	    // one sweep
-//		cout << "hey" << endl;
 		for (int l = 0; l < brush.length(); l++) {
 		    genTrialPts2dbg (l, brush, trialMonos, previous, trialThomson, trialRose, dbgctr, cellList, offsets);
 		}
@@ -228,7 +227,7 @@ int main(int argv, char *argc[]) {
 	    writeInFile("brush2.dat", brush, cellList);
 
 	    if (sweepctr%1 == 0) cout << "finished sweep " << sweepctr << endl;
-	    if (sweepctr%writeGrowth == 0 && (sweepctr > 0)) {
+	    if (sweepctr > 0) {
 		writeLengths("all_lens.dat", brush, sweepctr);
 	    }	
 	}
@@ -978,33 +977,35 @@ void clearBrush (genarray< Poly > &brush, genarray<twoInt> &cellList) {
 	cellIndex = getCellIndex(dummy, dx, dy, dz);
 	dummy.nextp = cellList(cellIndex).nextp;
 	dummy.nextm = cellList(cellIndex).nextm;
+	brush(i).chain(0) = dummy;
 	cellList(cellIndex).nextp = i; 
 	cellList(cellIndex).nextm = 0; 
     }
-//    cout << "init cellList: "<< endl;
-//
-//    int cellp, cellm, nextp, nextm;
-//    Mono meme;
-//    int checker = 0;
-//    for (int i = 0; i < cellList.length(); i++) {
-//	if (cellList(i).nextp >= 0) {
-//	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
-//	    nextp = cellList(i).nextp; 
-//	    nextm = cellList(i).nextm; 
-//	    while (nextp >= 0) {
-//		cellp = nextp;
-//		cellm = nextm;
-//		meme = brush(cellp).chain(cellm);
-//		cout << "p, m: " << cellp << " " << cellm << endl;
-//		nextp = meme.nextp;
-//		nextm = meme.nextm;
-//		checker++;
-//
-//	    }
-//	}
-//
-//    }
-//    cout << "clearbrush cellList check, counted " << checker << " Monos\n";
+    cout << "init cellList: "<< endl;
+
+    int cellp, cellm, nextp, nextm;
+    Mono meme;
+    int checker = 0;
+    for (int i = 0; i < cellList.length(); i++) {
+	if (cellList(i).nextp >= 0) {
+	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
+	    nextp = cellList(i).nextp; 
+	    nextm = cellList(i).nextm; 
+	    while (nextp >= 0) {
+		cellp = nextp;
+		cellm = nextm;
+		meme = brush(cellp).chain(cellm);
+		cout << "p, m: " << cellp << " " << cellm << endl;
+		nextp = meme.nextp;
+		nextm = meme.nextm;
+		checker++;
+
+	    }
+	}
+
+    }
+    cout << "clearbrush cellList check, counted " << checker << " Monos\n";
+//    for (int i = 0; i < brush.length(); i++)
 
 }
 
@@ -1564,10 +1565,13 @@ void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cel
 
     int nMonos = 0;
     int nBonds = 0;
+    int longest = 0;
     for (int i = 0; i < brush.length(); i++) {
 	nMonos += brush(i).nMono;
+	if (brush(i).nMono > longest) longest = brush(i).nMono;
 	nBonds += brush(i).nMono - 1;
     }
+    cout << "longest poly: " << longest << endl;
     ofstream myOut;
     myOut.open(outName.c_str(), ios::out);
     myOut << "LAMMPS Description\n\n";
@@ -1582,8 +1586,8 @@ void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cel
     myOut << "Atoms\n\n";
 
     // Unwrap polymers:
-    genarray<Mono> imageFlags(1000);
-    for (int i = 0; i < 1000; i++) {
+    genarray<Mono> imageFlags(longest);
+    for (int i = 0; i < longest; i++) {
 	imageFlags(i).x = 0;
 	imageFlags(i).y = 0;
 	imageFlags(i).z = 0;
@@ -1805,24 +1809,24 @@ void readLammps (string inName, genarray< Poly > &brush, genarray<twoInt> &cellL
 //    int nextp, nextm;
 //    Mono meme;
 //    int checker = 0;
-    for (int i = 0; i < cellList.length(); i++) {
-	if (cellList(i).nextp >= 0) {
-	    cout << "cell: "<< i << endl;
-//	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
-	    nextp = cellList(i).nextp; 
-	    nextm = cellList(i).nextm; 
-	    while (nextp >= 0) {
-		cellp = nextp;
-		cellm = nextm;
-		meme = brush(cellp).chain(cellm);
-		cout << "\tp, m: " << cellp << " " << cellm << endl;
-		nextp = meme.nextp;
-		nextm = meme.nextm;
-		checker++;
-
-	    }
-	}
-    }
+//    for (int i = 0; i < cellList.length(); i++) {
+//	if (cellList(i).nextp >= 0) {
+//	    cout << "cell: "<< i << endl;
+////	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
+//	    nextp = cellList(i).nextp; 
+//	    nextm = cellList(i).nextm; 
+//	    while (nextp >= 0) {
+//		cellp = nextp;
+//		cellm = nextm;
+//		meme = brush(cellp).chain(cellm);
+//		cout << "\tp, m: " << cellp << " " << cellm << endl;
+//		nextp = meme.nextp;
+//		nextm = meme.nextm;
+//		checker++;
+//
+//	    }
+//	}
+//    }
 
 }
 
