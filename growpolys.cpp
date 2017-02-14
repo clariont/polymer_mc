@@ -61,7 +61,7 @@ double xhalf, yhalf, zhalf, xbox, ybox, zbox;
 int ngraft;
 int totalMono;
 int nsweeps;
-//string spheroidFile;
+string spheroidFile;
 string thomsonFile;
 double r_cut = 2.1;
 double r_cutsq = r_cut*r_cut;
@@ -70,8 +70,6 @@ double sigma_sq = sigma*sigma;
 double epsilon = 10;
 double theta_0 = PI;
 double k_angle = 2;
-//double elp_a = 4.189;
-//double elp_c = 10.4725;
 double elp_a = 7.5;
 double elp_c = 3.0;
 double iterations = 1;
@@ -175,7 +173,8 @@ int main(int argv, char *argc[]) {
     genarray<Mono> offsets(nOffset);
 
     genarray< double > atomPositions;
-    makeSquareLattice (atomPositions);
+//    makeSquareLattice (atomPositions);
+    readConfig(spheroidFile, atomPositions);
 
     genarray< double > polarAngles;
     genarray< Poly > brush;
@@ -273,6 +272,8 @@ void paramReader (string fileName)
     in.open(fileName.c_str(), ios::in);
     string junk1;
     in >> junk1 >> thomsonFile;
+    in >> junk1 >> spheroidFile;
+    in >> junk1 >> ngraft;
     in >> junk1 >> nTrial;
     in >> junk1 >> iterations;
     in >> junk1 >> nsweeps;
@@ -282,8 +283,9 @@ void paramReader (string fileName)
     in >> junk1 >> box_len;
     in >> junk1 >> cellSize;
     cellSizeInv = 1/cellSize;
-    in >> junk1 >> lattice_size;
-//    if (box_len%cellSize != 0) cout << "problem with cell sizes - they don't divide nicely...\n";
+//    in >> junk1 >> lattice_size;
+    in >> junk1 >> elp_a;
+    in >> junk1 >> elp_c;
     cout << "warning, box_len%cellSize should be 0, for cell lists to work properly." << endl;
     in.close();
     xhi = 0.5*box_len;
@@ -1403,6 +1405,11 @@ double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush
 // Calculate pair energies and angle of adding trialMono to polymer whichPoly. 
 // New - use step potential - e = epsilon at overlap.
 // whichPoly is deprecated...get rid of it later!
+    double asqinv = 1/(elp_a*elp_a);
+    double csqinv = 1/(elp_c*elp_c);
+
+    double r_cutsq = r_cut*r_cut;
+//    double sigma_sq = sigma*sigma;
 
     double e = 0;
     int startMono;
@@ -1410,9 +1417,9 @@ double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush
     double dx, dy, dz, drsq, dr;
     double e_one;
 
-    if (trialMono.z < zlo) {
-	e = 10000000;
-//	cout << "m2.z less than zlo" << endl;
+    double elp_rad = (trialMono.x*trialMono.x + trialMono.y*trialMono.y)*asqinv + trialMono.z*trialMono.z*csqinv;
+    if (elp_rad < 1) {
+	e = 10000;
     }
     
     else {
