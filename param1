@@ -1,9 +1,12 @@
 thomsonFile 22.xyz
+spheroidFile prolate_e0.8.lammpstrj
+ngraft 1212
 ntrial 22
-iterations 1
-nsweeps 1
+iterations 40
+nsweeps 10
 mySeed 10
 TEMP 1
-box_len 20.0
+box_len 100.0
 cellSize 2
-lattice_size 1.0
+elp_a 5.37672
+elp_c 8.96120

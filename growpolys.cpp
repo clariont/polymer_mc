@@ -230,7 +230,7 @@ int main(int argv, char *argc[]) {
 		writeLengths("all_lens.dat", brush, sweepctr);
 	    }	
 	}
-	double trash = calcEnergy(brush);
+//	double trash = calcEnergy(brush);
 	cout << "hi" << endl;
 
 //	if (j%1 ==0 ) {
