@@ -1,0 +1,46 @@
+restart 10000 poly1.dat poly2.dat
+dump 1 all atom 1000 poly.lammpstrj
+dump_modify 1 sort id
+
+fix 1 heads setforce 0 0 0
+
+
+fix 5 tails nve
+fix 6 tails langevin 1.0 1.0 0.1 1 zero yes
+thermo 2000
+timestep 0.002
+run 10000
+Memory usage per processor = 9.70124 Mbytes
+Step Temp E_pair E_mol TotEng Press 
+       0            1    950.73401   0.41394998    952.64785    53.081293 
+    2000    1.0008908    950.65278   0.45378501    952.60779     53.06929 
+    4000    1.0088546    950.65393   0.46392777    952.63102     53.06967 
+    6000   0.99990684    950.65337    0.4600634    952.61319    53.072224 
+    8000   0.98983328    950.65164   0.46626352    952.60254    53.067743 
+   10000   0.99966088    950.65414   0.46157295    952.61509    53.068807 
+Loop time of 10.0185 on 4 procs for 10000 steps with 13332 atoms
+
+Pair  time (%) = 0.920414 (9.18713)
+Bond  time (%) = 0.640847 (6.39663)
+Neigh time (%) = 2.33891 (23.3459)
+Comm  time (%) = 2.42346 (24.1898)
+Outpt time (%) = 0.0778952 (0.777513)
+Other time (%) = 3.61699 (36.1031)
+
+Nlocal:    3333 ave 3469 max 3187 min
+Histogram: 1 0 0 0 0 2 0 0 0 1
+Nghost:    706.75 ave 734 max 686 min
+Histogram: 1 1 0 0 0 1 0 0 0 1
+Neighs:    5080 ave 5211 max 4941 min
+Histogram: 2 0 0 0 0 0 0 0 0 2
+
+Total # of neighbors = 20320
+Ave neighs/atom = 1.52415
+Ave special neighs/atom = 5.30048
+Neighbor list builds = 553
+Dangerous builds = 0
+
+#timestep 0.005
+#run 10000
+
+

@@ -1,0 +1,59 @@
+units		lj
+atom_style		full
+boundary		p p p
+#read_restart		 old_config1.dat
+read_data		elppts.dat
+neighbor		 0.3 bin
+neigh_modify		every 1 delay 1
+bond_style		harmonic
+#bond_coeff		1 800 3.0 2.5 2.5 1 3.0
+
+variable		a equal 7.07432523071
+variable		c equal 16.2296151444
+bond_coeff		1 10000 1 ${a} ${a} ${c} 1
+
+pair_style soft 1.0
+pair_coeff 1 1 0 1
+pair_coeff 2 2 80.0 1.1
+pair_coeff 1 2 0
+#pair_coeff		 2 2 soft 1.0 1.0
+#group		ligands type 2 3
+#pair_coeff		 1 2 lj/cut 0 1.0 1.12246
+##pair_coeff		 1 4 lj/cut 1.0 1.0 1.12246
+##pair_coeff		 2 4 lj/cut 1.0 1.0 1.12246
+##pair_coeff		 3 4 lj/cut 1.0 1.0 1.12246
+##pair_coeff		 4 4 lj/cut 1.0 1.0 1.12246
+#pair_coeff		 2 3 lj/cut 1.0 1.0 2.24492
+#pair_coeff		 1 3 lj/cut 1.0 1.0 1.12246
+#pair_coeff		 3 3 lj/cut 1.0 1.0 1.12246
+pair_modify		shift yes
+#group			cores type 1
+#group			ligands type 2 3 
+#group			tail type 3
+group			heads type 2
+velocity		heads create 0.0 482748
+#velocity		cores create 0.0 1
+
+##Squishing via deform:
+#restart		1000 old_config_1.dat squishedconfig.dat
+#fix		5 all nve
+#fix		ywalls all wall/lj93 ylo EDGE 1.0 1.0 2.5 yhi EDGE 1.0 1.0 2.5 units box
+#fix		6 all langevin 1.5 1.5 1 404297
+#timestep		0.001
+#run		100000
+#fix		7 all deform 1 x final -10 10 z final -10 10 units box
+#thermo		2000
+#timestep		0.001
+#run		200000
+#
+
+#NVE Run
+restart		1000 old1.dat old2.dat 
+fix		5 heads nve
+fix		6 heads langevin 0.01 0.005 0.1 404297   # the "1" term after temp_initial and temp_final is the "drag" coefficient/inverse drag from Langevin dynamics.
+#minimize 1.0e-4 1.0e-6 100 1000
+dump		id all atom 1000 config.lammpstrj
+timestep		0.005
+thermo		1000	
+run		50000
+
