@@ -8,14 +8,14 @@ neigh_modify		every 1 delay 1
 bond_style		harmonic
 #bond_coeff		1 800 3.0 2.5 2.5 1 3.0
 
-variable		a equal 9.82078894588
-variable		c equal 9.82078894588
+variable		a equal 9.82078894558
+variable		c equal 9.82078894558
 bond_coeff		1 10000 1 ${a} ${a} ${c} 1
 
-pair_style coul/cut 2.5
-pair_coeff 1 1 0
-pair_coeff 2 2 20.0
-pair_coeff 1 2 0 
+pair_style soft 1.0
+pair_coeff 1 1 0 1
+pair_coeff 2 2 20.0 1.1
+pair_coeff 1 2 0
 #pair_coeff		 2 2 soft 1.0 1.0
 #group		ligands type 2 3
 #pair_coeff		 1 2 lj/cut 0 1.0 1.12246
@@ -50,10 +50,10 @@ velocity		heads create 0.0 482748
 #NVE Run
 restart		1000 old1.dat old2.dat 
 fix		5 heads nve
-fix		6 heads langevin 0.01 0.01 0.1 404297   # the "1" term after temp_initial and temp_final is the "drag" coefficient/inverse drag from Langevin dynamics.
+fix		6 heads langevin 0.01 0.005 0.1 404297   # the "1" term after temp_initial and temp_final is the "drag" coefficient/inverse drag from Langevin dynamics.
 #minimize 1.0e-4 1.0e-6 100 1000
 dump		id all atom 1000 config.lammpstrj
-timestep		0.0001
+timestep		0.005
 thermo		1000	
 run		50000
 
