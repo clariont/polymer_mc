@@ -49,13 +49,14 @@ class Poly {
 };
 
 // Global Variables
+int mix = 0;		// This sets whether it's a two component polymer system
 const double PI = 3.14159265359;
 gsl_rng * mrRand;
 double mySeed = 1;
 double TEMP = 1;
 double mass = 1.0;
 int totalSteps = 10000000;
-int writeEvery = 1000;
+int writeFreq = 12;	// How many times per sweep to write out and perform MD.
 double xlo, xhi, ylo, yhi, zlo, zhi;
 double xhalf, yhalf, zhalf, xbox, ybox, zbox;
 int ngraft;
@@ -145,6 +146,11 @@ void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cel
 
 void readLammps (string inName, genarray< Poly > &brush, genarray<twoInt> &cellList);
 
+void writePolarAngles (string outName, genarray< Poly > &brush, int sweep); 
+
+void writeLammps2 (string outName, genarray< Poly > &brush); 
+
+
 // Main
 
 int main(int argv, char *argc[]) {
@@ -163,6 +169,8 @@ int main(int argv, char *argc[]) {
     myOut.open("brush_all.lammpstrj", ios::out);
     myOut.close();
     myOut.open("brush.lammpstrj", ios::out);
+    myOut.close();
+    myOut.open("heads.lammpstrj", ios::out);
     myOut.close();
 
     genarray< Poly > trialThomson;
@@ -196,58 +204,56 @@ int main(int argv, char *argc[]) {
     outer.open("r_fac.dat", ios::out);
     outer1.open("anglevlen.dat", ios::out);
     outer2.open("all_lens.dat", ios::out);
+    int sweepctr = 0;
     int previous = -1;
     int dbgctr = 0;
-    int sweepctr;
+    int oneWrite = ngraft/writeFreq;
+    cout << "oneWrite: " << oneWrite << endl;
     for (int j = 0; j < iterations; j++)  {
 	dbgctr = 0;
 	for (int k = 0; k < nsweeps; k++) {
 	    previous = -1;
-	    for (int i = 0; i < ngraft; i++) {	    // one sweep
-		for (int l = 0; l < brush.length(); l++) {
-		    genTrialPts2dbg (l, brush, trialMonos, previous, trialThomson, trialRose, dbgctr, cellList, offsets);
-		}
+	    for (int m = 0; m < writeFreq; m++) {	    // one sweep
+		previous = -1;
+		for (int i = 0; i < oneWrite; i++) {	    
+		    for (int l = 0; l < brush.length(); l++) {
+			genTrialPts2dbg (l, brush, trialMonos, previous, trialThomson, trialRose, dbgctr, cellList, offsets);
+		    }
 
-		// add monomer
-//		cout << "adding mono: " << i << endl;
-		rose_w = addMonomer (brush, trialMonos, trialRose, previous, cellList);
-		sweepctr = k;
-		if (rose_w == -1) {
-		    i = ngraft;
-		    k = nsweeps;
-		}
-		else{
-		    sweepctr = k;
-		}
-	    } 
-	    writeInFile("brush.dat", brush, cellList);
-	    system("bash runmd.sh");
-	    readLammps("equil.lammpstrj", brush, cellList);
-	    writeInFile("brush2.dat", brush, cellList);
+		    // add monomer
+    //		cout << "adding mono: " << i << endl;
+		    rose_w = addMonomer (brush, trialMonos, trialRose, previous, cellList);
+		    if (rose_w == -1) {
+			i = oneWrite;
+			m = writeFreq;
+			k = nsweeps;
+		    }
+//		    else{
+//			sweepctr = k;
+//		    }
+		} 
+		
+		cout << "finished: " << k+int((m+1)*oneWrite)/double(ngraft) << endl;
+
+		writeInFile("brush.dat", brush, cellList);
+		writeBrush ("brush_all.lammpstrj", brush);
+		system("bash runmd.sh");
+		clearBrush(brush, cellList);
+		readLammps("equil.lammpstrj", brush, cellList);
+		writeInFile("brush2.dat", brush, cellList);
+//		writeLengths("all_lens.dat", brush, k+ngraft/((m+1)*oneWrite));
+//		writePolarAngles("anglevlen.dat", brush, k+ngraft/((m+1)*oneWrite));
+	    }
+	    writeLengths("all_lens.dat", brush, k+1);
+	    writePolarAngles("anglevlen.dat", brush, k+1);
 
 	    if (sweepctr%1 == 0) cout << "finished sweep " << sweepctr << endl;
-	    if (sweepctr > 0) {
-		writeLengths("all_lens.dat", brush, sweepctr);
-	    }	
 	}
+	writeLammps2("heads.lammpstrj", brush);
 //	double trash = calcEnergy(brush);
-	cout << "hi" << endl;
 
-//	if (j%1 ==0 ) {
-//	    cout << "finished brush: " << j << endl;
-//	}
-//
 //	writeBrush ("brush_all.lammpstrj", brush);
 //	writeLammps ("brush.lammpstrj", brush);
-//	outer << j << "\t" << rose_w << "\n";
-//	rose_w = 1;
-
-//	// Analyze:
-////	calcPolarAngle(brush, polarAngles);
-//	for (int k = 0; k < brush.length(); k++) {
-////	    outer1 << brush(i).nMono-1 << "\t" << polarAngles(i) << "\n";
-//	    hist(brush(k).nMono) = hist(brush(k).nMono) + 1;
-//	}
 	
 
 	// Reset brush:
@@ -277,9 +283,10 @@ void paramReader (string fileName)
     in >> junk1 >> nTrial;
     in >> junk1 >> iterations;
     in >> junk1 >> nsweeps;
-//    in >> junk1 >> writeEvery;
+    in >> junk1 >> writeFreq;
     in >> junk1 >> mySeed;
     in >> junk1 >> TEMP;
+    in >> junk1 >> mix;
     in >> junk1 >> box_len;
     in >> junk1 >> cellSize;
     cellSizeInv = 1/cellSize;
@@ -290,16 +297,17 @@ void paramReader (string fileName)
     in.close();
     xhi = 0.5*box_len;
     yhi = 0.5*box_len;
-    zhi = 10000;
+    zhi = 0.5*box_len;
     xlo = -xhi;
     xhalf = xhi;
     yhalf = yhi;
     xbox = box_len;
     ybox = box_len;
-    zbox = zhi;
+    zbox = box_len;
     zhalf = zbox*0.5;
     ylo = -yhi;
-    zlo = 0;
+    zlo = -zhi;
+    cout << "xlo, xhi: " << xlo <<  " " << xhi << endl;
 
     int ngrafter = box_len/lattice_size;
 //    writeGrowth = (ngrafter*ngrafter)*0.5;
@@ -917,25 +925,6 @@ double addMonomer (genarray< Poly > &brush, genarray < Poly > &trialMonos, genar
 
 void writeBrush (string outName, genarray< Poly > &brush) {
 
-//    int nxyz = 2*(ngraft+totalMono);
-//    ofstream myOut;
-//    myOut.open(outName.c_str(), ios::app);
-//    myOut << nxyz << "\n\n";
-//    Mono m;
-//    int ctr = 0;
-//    for (int i = 0; i < brush.length(); i++) {
-//	for (int j = 0; j < brush(i).nMono; j++) {
-//	    m = brush(i).chain(j);
-//	    myOut << "O " << m.x << " " << m.y << " " << m.z << "\n";
-//	    myOut << "N 0 0 0 \n";
-//	    ctr++;
-//	}
-//    }
-//    int dummies = (ngraft+totalMono) - ctr;
-//    for (int i = 0; i < dummies; i++) {
-//	myOut << "O 0 0 -2 \n";
-//	myOut << "N 0 0 -2 \n";
-//    }
 
     Mono m;
     double xinv = 1/xbox;
@@ -983,21 +972,21 @@ void clearBrush (genarray< Poly > &brush, genarray<twoInt> &cellList) {
 	cellList(cellIndex).nextp = i; 
 	cellList(cellIndex).nextm = 0; 
     }
-    cout << "init cellList: "<< endl;
+//    cout << "init cellList: "<< endl;
 
     int cellp, cellm, nextp, nextm;
     Mono meme;
     int checker = 0;
     for (int i = 0; i < cellList.length(); i++) {
 	if (cellList(i).nextp >= 0) {
-	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
+//	    cout << "\t" << i << " " << cellList(i).nextp << " " << cellList(i).nextm << endl; 
 	    nextp = cellList(i).nextp; 
 	    nextm = cellList(i).nextm; 
 	    while (nextp >= 0) {
 		cellp = nextp;
 		cellm = nextm;
 		meme = brush(cellp).chain(cellm);
-		cout << "p, m: " << cellp << " " << cellm << endl;
+//		cout << "p, m: " << cellp << " " << cellm << endl;
 		nextp = meme.nextp;
 		nextm = meme.nextm;
 		checker++;
@@ -1006,7 +995,7 @@ void clearBrush (genarray< Poly > &brush, genarray<twoInt> &cellList) {
 	}
 
     }
-    cout << "clearbrush cellList check, counted " << checker << " Monos\n";
+//    cout << "clearbrush cellList check, counted " << checker << " Monos\n";
 //    for (int i = 0; i < brush.length(); i++)
 
 }
@@ -1053,6 +1042,30 @@ void writeLammps (string outName, genarray< Poly > &brush) {
 	myOut << i+1 << " 1 " << (m.x+boxrad)*length_inv << " " << (m.y+boxrad)*length_inv << " " << (m.z+boxrad)*length_inv;
 	myOut << " " << brush(i).nMono << "\n";
 
+    }
+    myOut.close();
+}
+void writeLammps2 (string outName, genarray< Poly > &brush) {
+    int nMonos = 0;
+    for (int i = 0; i < brush.length(); i++) {
+	nMonos += brush(i).nMono;
+    }
+
+    Mono m;
+    double xinv = 1/xbox;
+    double yinv = 1/ybox;
+    double zinv = 1/zbox;
+    ofstream myOut;
+    myOut.open(outName.c_str(), ios::app);
+    myOut << "ITEM: TIMESTEP\n" << "0" << "\nITEM: NUMBER OF ATOMS\n";
+    myOut << (ngraft) << "\n" << "ITEM: BOX BOUNDS pp pp pp\n";
+    myOut << xlo << " " << xhi << "\n" << ylo << " " << yhi << "\n" << zlo << " " << zhi << "\n";
+    myOut << "ITEM: ATOMS id type xs ys zs q\n";
+    int ctr = 1;
+    for (int i = 0; i < brush.length(); i++) {
+	    m = brush(i).chain(0);
+	    myOut << ctr << " 1 " << (m.x-xlo)*xinv << " " << (m.y-ylo)*yinv << " " << (m.z-zlo)*zinv <<  " " << brush(i).nMono << "\n";
+	    ctr++;
     }
     myOut.close();
 }
@@ -1312,95 +1325,6 @@ int getCellIndex (Mono &m, int &xind, int &yind, int &zind) {
 
 }
 
-/* Optimize this later...
-void genTrialPts_cell(genarray< Poly > &brush, genarray < Poly > &trialMonos, int previousPoly, 
-	genarray< Poly > &trialThomson, genarray< Poly > &trialRose, int &dbgctr) { 
-// Combines gentrialpts and calcrosenbluth and calcen:
-// Also uses cell Lists
-
-// Only update the trialThomson monomers for polymer tails in the neighboring cells of previousPoly's tail (the previously added Mono).
-
-    int twosigsq = 4*sigma;
-    double beta = -1/TEMP;
-    double r_cutsq = r_cut*r_cut;
-    double dx, dy, dz, mag;
-    Mono m2, mt, store;
-    double en, rose, myexp;
-
-    store.x = 0;
-    store.y = 0;
-    int nMono = brush(whichPoly).nMono;
-    int prevTail;
-    
-    // Loop over cells:
-    int xind, yind, zind, x2ind, y2ind, z2ind, cell2ind;
-    int m2p, m2m, next, polyTail;
-    prevTail = brush(previousPoly).nMono - 1;
-    int myCell = getCellIndex( brush(previousPoly).chain(prevTail), xind, yind, zind );
-    Mono m1, m2;
-    m1 = brush(previousPoly).chain(prevTail);
-    for (int k = 0; k < nOffset; i++) {
-	x2ind = xind + offsets(k).x;
-	y2ind = yind + offsets(k).y;
-	z2ind = zind + offsets(k).z;
-	if (x2ind > (ncellx-1)) x2ind = 0;
-	if (y2ind > (ncellx-1)) x2ind = 0;
-	if (x2ind < 0) x2ind = ncellx - 1;
-	if (y2ind < 0) y2ind = ncelly - 1;
-	cell2ind = x2ind*ncellx + y2ind*ncelly + z2ind;
-
-	m2p = cellList(cell2ind).poly;
-	m2m = cellList(cell2ind).mono;
-	next = 1;
-	while(next >= 0) {		// loops over the Monos in cell 1.
-	    // Check it's not self
-	    if (m2p != previousPoly && m2m != prevTail) {	  
-		// Check if it's a tail.
-		polyTail = brush(m2p).nMono-1;
-		if (m2m == polyTail) {
-		    m2 = brush(m2p).chain(m2m);
-		    // Distance check:
-		    if (monoDistSq < r_cutsq) {
-			dbgctr++;
-			// Use Thomson pts to generate trial pts around the tail monomer:
-			int rand = gsl_rng_uniform_int (mrRand, trialThomson.length());
-			Poly trialSphere = trialThomson(rand);
-			Mono ms;
-			trialnMono = trialThomson(rand).nMono;
-			for (int i = 0; i < trialSphere.nMono; i++) {
-			    ms = trialSphere.chain(i);
-			    ms.x = ms.x + brush(whichPoly).chain(nMono-1).x;
-			    ms.y = ms.y + brush(whichPoly).chain(nMono-1).y;
-			    ms.z = ms.z + brush(whichPoly).chain(nMono-1).z;
-
-			    if(ms.x < xlo) ms.x = ms.x + xbox;
-			    if(ms.y < ylo) ms.y = ms.y + ybox;
-			    if(ms.x > xhi) ms.x = ms.x - xbox;
-			    if(ms.y > yhi) ms.y = ms.y - ybox;
-			    trialMonos(whichPoly).chain(i) = ms;
-
-			    en = calcAddOneEn(ms, i, brush);
-			    myexp = beta*en;
-			    if (en > 1000)
-				rose = 0;
-			    else
-				rose = exp(myexp);
-				
-			    store.x = en;
-			    store.y = rose;
-			    trialRose(whichPoly).chain(i) = store;
-			}
-
-		    }
-		}
-	    }
-	}
-    }
-
-}
-*/
-
-//double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush) {
 double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush, genarray<twoInt> &cellList, genarray<Mono> &offsets) {
 // Calculate pair energies and angle of adding trialMono to polymer whichPoly. 
 // New - use step potential - e = epsilon at overlap.
@@ -1569,6 +1493,19 @@ double calcAddOneEn_cell(Mono &trialMono, int whichPoly, genarray< Poly > &brush
 //}
 
 void writeInFile (string outName, genarray< Poly >&brush,  genarray<twoInt> &cellList) {
+    xhi = 0.5*box_len;
+    yhi = 0.5*box_len;
+    zhi = 0.5*box_len;
+    xlo = -xhi;
+    xhalf = xhi;
+    yhalf = yhi;
+    xbox = box_len;
+    ybox = box_len;
+    zbox = box_len;
+    zhalf = zbox*0.5;
+    ylo = -yhi;
+    zlo = -zhi;
+    cout << "xlo, xhi: " << xlo << " " << xhi << endl;
 
     int nMonos = 0;
     int nBonds = 0;
@@ -1810,12 +1747,10 @@ void readLammps (string inName, genarray< Poly > &brush, genarray<twoInt> &cellL
 	}
     }
     cout << "finished reading file" << endl;
-    int nextp, nextm;
-    Mono meme;
-    int checker = 0;
 //    int nextp, nextm;
 //    Mono meme;
 //    int checker = 0;
+////    int nextp, nextm;
 //    for (int i = 0; i < cellList.length(); i++) {
 //	if (cellList(i).nextp >= 0) {
 //	    cout << "cell: "<< i << endl;
@@ -1834,9 +1769,32 @@ void readLammps (string inName, genarray< Poly > &brush, genarray<twoInt> &cellL
 //	    }
 //	}
 //    }
+//    cout << "after readLammps, natoms: " << checker << endl;
 
 }
 
+void writePolarAngles (string outName, genarray< Poly > &brush, int sweep) {
+    
+    ofstream outer;
+    outer.open(outName.c_str(), ios::app);
+    double c, r2;
+    Mono m1, m2;
+    m1.x = 0;
+    m1.y = 0;
+    m1.z = 1;
+
+    for (int i = 0; i < brush.length(); i++) {
+	m2 = brush(i).chain(0);
+	r2 = m2.x*m2.x + m2.y*m2.y + m2.z*m2.z;
+	r2 = sqrt(r2);
+	c = m2.z/r2;
+	if (c > 1.0) c = 1.0;
+	if (c < -1.0) c = -1.0;
+	outer << acos(c) << "\t" << brush(i).nMono << "\t" << sweep << endl;
+    }
+
+    outer.close();
+}
 
 
 

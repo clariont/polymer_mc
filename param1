@@ -4,8 +4,10 @@ ngraft 1212
 ntrial 22
 iterations 40
 nsweeps 10
+MDFreq 12
 mySeed 10
 TEMP 1
+mix 1
 box_len 100.0
 cellSize 2
 elp_a 5.37672
